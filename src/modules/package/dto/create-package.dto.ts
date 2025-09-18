@@ -1,5 +1,17 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsDateString, IsNumber, IsOptional, IsString } from 'class-validator';
+
+export enum PackageStatus {
+  CREATED = 'CREATED',
+  AWAITING_CHECKIN = 'AWAITING_CHECKIN',
+  AT_ORIGIN = 'AT_ORIGIN',
+  IN_WAREHOUSE = 'IN_WAREHOUSE',
+  IN_TRANSIT = 'IN_TRANSIT',
+  OUT_FOR_DELIVERY = 'OUT_FOR_DELIVERY',
+  DELIVERED = 'DELIVERED',
+  RETURNED = 'RETURNED',
+  EXCEPTION = 'EXCEPTION',
+}
 
 export class CreatePackageDto {
   @ApiPropertyOptional()
@@ -36,4 +48,39 @@ export class CreatePackageDto {
   @IsOptional()
   @IsNumber()
   weightKg?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  originId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  destinationId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  currentWarehouseId?: string;
+
+  @ApiPropertyOptional({ enum: PackageStatus, enumName: 'PackageStatus' })
+  @IsOptional()
+  @IsEnum(PackageStatus)
+  status?: PackageStatus;
+
+  @ApiPropertyOptional({ description: 'Override timestamp status' })
+  @IsOptional()
+  @IsDateString()
+  lastStatusAt?: string;
+
+  @ApiPropertyOptional({ example: -34.6 })
+  @IsOptional()
+  @IsNumber()
+  latitude?: number;
+
+  @ApiPropertyOptional({ example: -58.38 })
+  @IsOptional()
+  @IsNumber()
+  longitude?: number;
 }

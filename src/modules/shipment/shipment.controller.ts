@@ -13,6 +13,7 @@ import { CreateShipmentDto } from './dto/create-shipment.dto';
 import { UpdateShipmentDto } from './dto/update-shipment.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { BulkUpdateShipmentPackagesDto } from './dto/bulk-update-shipment-packages.dto';
 
 @ApiTags('shipment')
 @Controller('shipment')
@@ -47,5 +48,14 @@ export class ShipmentController {
   @ApiOperation({ summary: 'Eliminar envío' })
   remove(@Param('id') id: string) {
     return this.shipmentService.remove(id);
+  }
+
+  @Patch(':id/packages/bulk-update')
+  @ApiOperation({ summary: 'Actualizar en bloque todos los paquetes de un shipment' })
+  bulkUpdatePackages(
+    @Param('id') id: string,
+    @Body() dto: BulkUpdateShipmentPackagesDto,
+  ) {
+    return this.shipmentService.bulkUpdatePackages(id, dto);
   }
 }

@@ -13,3 +13,4 @@ export { WarehouseModule } from './warehouse/warehouse.module';
 export { VehicleModule } from './vehicle/vehicle.module';
 export { ProductCategoryModule } from './product-category/product-category.module';
 export { InventoryModule } from './inventory/inventory.module';
+export { ClientUserModule } from './client-user/client-user.module';

@@ -42,6 +42,18 @@ enum OrderStatus {
   PENDING
 }
 
+enum PackageStatus {
+  CREATED
+  AWAITING_CHECKIN
+  AT_ORIGIN
+  IN_WAREHOUSE
+  IN_TRANSIT
+  OUT_FOR_DELIVERY
+  DELIVERED
+  RETURNED
+  EXCEPTION
+}
+
 enum ReturnStatus {
   REQUESTED
   APPROVED
@@ -98,6 +110,8 @@ model Address {
   shipmentsFrom Shipment[]   @relation("ShipmentOrigin")
   shipmentsTo   Shipment[]   @relation("ShipmentDestination")
   warehouse     Warehouse?
+  packagesFrom  Package[]    @relation("PackageOrigin")
+  packagesTo    Package[]    @relation("PackageDestination")
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
   deletedAt     DateTime?
@@ -162,7 +176,7 @@ model InventoryAllocation {
   inventoryId String
   orderItemId String
   quantity    Int
-  status      InventoryAllocationStatus @default(PENDING) // NUEVO default
+  status      InventoryAllocationStatus @default(PENDING)
   inventory   Inventory                 @relation(fields: [inventoryId], references: [id])
   orderItem   OrderItem                 @relation(fields: [orderItemId], references: [id])
   createdAt   DateTime                  @default(now())
@@ -251,20 +265,34 @@ model OrderItem {
 }
 
 model Package {
-  id           String        @id @default(uuid())
-  orderId      String?
-  order        Order?        @relation(fields: [orderId], references: [id])
-  shipmentId   String?
-  shipment     Shipment?     @relation(fields: [shipmentId], references: [id])
-  trackingCode String?       @unique
-  heightCm     Float?
-  lengthCm     Float?
-  widthCm      Float?
-  weightKg     Float?
-  items        PackageItem[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  deletedAt    DateTime?
+  id                 String        @id @default(uuid())
+  orderId            String?
+  order              Order?        @relation(fields: [orderId], references: [id])
+  shipmentId         String?
+  shipment           Shipment?     @relation(fields: [shipmentId], references: [id])
+  trackingCode       String?       @unique
+  heightCm           Float?
+  lengthCm           Float?
+  widthCm            Float?
+  weightKg           Float?
+  items              PackageItem[]
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  deletedAt          DateTime?
+  originId           String?
+  origin             Address?      @relation("PackageOrigin", fields: [originId], references: [id])
+  destinationId      String?
+  destination        Address?      @relation("PackageDestination", fields: [destinationId], references: [id])
+  currentWarehouseId String?
+  currentWarehouse   Warehouse?    @relation("PackageCurrentWarehouse", fields: [currentWarehouseId], references: [id])
+  status             PackageStatus @default(CREATED)
+  lastStatusAt       DateTime?
+  lastScanAt         DateTime?
+  latitude           Float?
+  longitude          Float?
+
+  @@index([status])
+  @@index([currentWarehouseId])
 }
 
 model PackageItem {
@@ -448,6 +476,7 @@ model Warehouse {
   shipments            Shipment[]      @relation("WarehouseShipments")
   currentShipments     Shipment[]      @relation("CurrentWarehouse")
   destinationShipments Shipment[]      @relation("DestinationWarehouse")
+  packagesCurrent      Package[]       @relation("PackageCurrentWarehouse")
   createdAt            DateTime        @default(now())
   updatedAt            DateTime        @updatedAt
   deletedAt            DateTime?

@@ -19,6 +19,7 @@ import {
   UserModule,
   VehicleModule,
   WarehouseModule,
+  ClientUserModule
 } from './modules';
 
 @Module({
@@ -40,6 +41,7 @@ import {
     UserModule,
     VehicleModule,
     WarehouseModule,
+    ClientUserModule,
   ],
   controllers: [AppController],
   providers: [AppService],
