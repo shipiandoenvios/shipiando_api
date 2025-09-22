@@ -1,5 +1,11 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsDateString, IsNumber, IsOptional, IsString } from 'class-validator';
+import {
+  IsEnum,
+  IsDateString,
+  IsNumber,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 export enum PackageStatus {
   CREATED = 'CREATED',

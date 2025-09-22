@@ -3,7 +3,6 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { PackageStatus } from '../../package/dto/create-package.dto';
 
 export class BulkUpdateShipmentPackagesDto {
-    
   @ApiPropertyOptional({ enum: PackageStatus })
   @IsOptional()
   @IsEnum(PackageStatus)

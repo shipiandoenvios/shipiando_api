@@ -6,6 +6,8 @@ import {
   PaginationQueryDto,
   PaginatedResult,
 } from '../../common/dto/pagination-query.dto';
+import { buildPaginatedResult } from '../../common/utils/pagination.util';
+import type { Invoice } from '@prisma/client';
 
 @Injectable()
 export class InvoiceService {
@@ -15,7 +17,9 @@ export class InvoiceService {
     return this.prisma.invoice.create({ data });
   }
 
-  async findAll(params?: PaginationQueryDto): Promise<PaginatedResult<any>> {
+  async findAll(
+    params?: PaginationQueryDto,
+  ): Promise<PaginatedResult<Invoice>> {
     const {
       page = 1,
       limit = 20,
@@ -23,7 +27,7 @@ export class InvoiceService {
       sortOrder = 'asc',
     } = params || {};
     const skip = (page - 1) * limit;
-    const [total, data] = await this.prisma.$transaction([
+    const [total, items] = await this.prisma.$transaction([
       this.prisma.invoice.count(),
       this.prisma.invoice.findMany({
         skip,
@@ -31,10 +35,7 @@ export class InvoiceService {
         orderBy: { [sortBy]: sortOrder },
       }),
     ]);
-    return {
-      data,
-      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
-    };
+    return buildPaginatedResult(items, total, page, limit);
   }
 
   async findOne(id: string) {

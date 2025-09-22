@@ -6,6 +6,8 @@ import {
   PaginationQueryDto,
   PaginatedResult,
 } from 'src/common/dto/pagination-query.dto';
+import { buildPaginatedResult } from '../../common/utils/pagination.util';
+import type { Client } from '@prisma/client';
 
 @Injectable()
 export class ClientService {
@@ -15,7 +17,7 @@ export class ClientService {
     return this.prisma.client.create({ data });
   }
 
-  async findAll(params?: PaginationQueryDto): Promise<PaginatedResult<any>> {
+  async findAll(params?: PaginationQueryDto): Promise<PaginatedResult<Client>> {
     const {
       page = 1,
       limit = 20,
@@ -23,7 +25,7 @@ export class ClientService {
       sortOrder = 'asc',
     } = params || {};
     const skip = (page - 1) * limit;
-    const [total, data] = await this.prisma.$transaction([
+    const [total, items] = await this.prisma.$transaction([
       this.prisma.client.count(),
       this.prisma.client.findMany({
         skip,
@@ -31,10 +33,7 @@ export class ClientService {
         orderBy: { [sortBy]: sortOrder },
       }),
     ]);
-    return {
-      data,
-      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
-    };
+    return buildPaginatedResult(items, total, page, limit);
   }
 
   async findOne(id: string) {

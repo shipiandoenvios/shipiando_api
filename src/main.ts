@@ -1,7 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
-import { PrismaService } from './prisma/prisma.service';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
@@ -22,6 +21,7 @@ async function bootstrap() {
     .setDescription('API de logística, envíos, inventario y tracking')
     .setVersion('1.0.0')
     .addTag('user')
+    .addTag('client-user')
     .addTag('client')
     .addTag('address')
     .addTag('product')
@@ -42,8 +42,6 @@ async function bootstrap() {
   SwaggerModule.setup('docs', app, document, {
     swaggerOptions: { persistAuthorization: true },
   });
-
-  const prisma = app.get(PrismaService);
 
   await app.listen(process.env.PORT ?? 3001);
 }

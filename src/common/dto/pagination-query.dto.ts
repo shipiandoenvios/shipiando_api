@@ -22,13 +22,5 @@ export class PaginationQueryDto {
   @IsIn(['asc', 'desc'])
   sortOrder?: 'asc' | 'desc' = 'asc';
 }
-
-export interface PaginatedResult<T> {
-  data: T[];
-  meta: {
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
-  };
-}
+import type { PaginatedResult as UnifiedPaginatedResult } from '../utils/pagination.util';
+export type PaginatedResult<T> = UnifiedPaginatedResult<T>;

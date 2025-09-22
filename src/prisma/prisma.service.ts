@@ -1,11 +1,14 @@
-import { INestApplication, Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { PrismaClient, Prisma } from '@prisma/client';
 
 @Injectable()
-export class PrismaService extends PrismaClient<
-  Prisma.PrismaClientOptions,
-  'query' | 'error' | 'beforeExit'
-> implements OnModuleInit, OnModuleDestroy {
+export class PrismaService
+  extends PrismaClient<
+    Prisma.PrismaClientOptions,
+    'query' | 'error' | 'beforeExit'
+  >
+  implements OnModuleInit, OnModuleDestroy
+{
   constructor() {
     super({
       log: [

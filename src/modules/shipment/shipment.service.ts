@@ -6,7 +6,13 @@ import {
   PaginationQueryDto,
   PaginatedResult,
 } from '../../common/dto/pagination-query.dto';
-import { Prisma, TrackingEventType } from '@prisma/client';
+import { buildPaginatedResult } from '../../common/utils/pagination.util';
+import {
+  TrackingEventType,
+  PackageStatus,
+  ShipmentStatus,
+} from '@prisma/client';
+import type { Shipment } from '@prisma/client';
 
 @Injectable()
 export class ShipmentService {
@@ -14,7 +20,9 @@ export class ShipmentService {
   create(data: CreateShipmentDto) {
     return this.prisma.shipment.create({ data });
   }
-  async findAll(params?: PaginationQueryDto): Promise<PaginatedResult<any>> {
+  async findAll(
+    params?: PaginationQueryDto,
+  ): Promise<PaginatedResult<Shipment>> {
     const {
       page = 1,
       limit = 20,
@@ -22,7 +30,7 @@ export class ShipmentService {
       sortOrder = 'asc',
     } = params || {};
     const skip = (page - 1) * limit;
-    const [total, data] = await this.prisma.$transaction([
+    const [total, items] = await this.prisma.$transaction([
       this.prisma.shipment.count(),
       this.prisma.shipment.findMany({
         skip,
@@ -30,10 +38,7 @@ export class ShipmentService {
         orderBy: { [sortBy]: sortOrder },
       }),
     ]);
-    return {
-      data,
-      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
-    };
+    return buildPaginatedResult(items, total, page, limit);
   }
 
   async findOne(id: string) {
@@ -42,14 +47,14 @@ export class ShipmentService {
     return shipment;
   }
 
-  private mapShipmentToPackageStatus(shipmentStatus: string) {
+  private mapShipmentToPackageStatus(shipmentStatus: ShipmentStatus) {
     switch (shipmentStatus) {
       case 'IN_TRANSIT':
-        return 'IN_TRANSIT';
+        return PackageStatus.IN_TRANSIT;
       case 'DELIVERED':
-        return 'DELIVERED';
+        return PackageStatus.DELIVERED;
       case 'RETURNED':
-        return 'RETURNED';
+        return PackageStatus.RETURNED;
       default:
         return null;
     }
@@ -57,7 +62,7 @@ export class ShipmentService {
 
   private async propagatePackageStatuses(
     shipmentId: string,
-    newShipmentStatus: string,
+    newShipmentStatus: ShipmentStatus,
   ) {
     const pkgStatus = this.mapShipmentToPackageStatus(newShipmentStatus);
     if (!pkgStatus) return;
@@ -77,12 +82,14 @@ export class ShipmentService {
         },
       },
       data: {
-        status: pkgStatus as any,
+        status: pkgStatus,
         lastStatusAt: new Date(),
       },
     });
 
-    const shipment = await this.prisma.shipment.findUnique({ where: { id: shipmentId } });
+    const shipment = await this.prisma.shipment.findUnique({
+      where: { id: shipmentId },
+    });
     if (shipment) {
       let eventType: TrackingEventType | null = null;
       switch (newShipmentStatus) {
@@ -108,7 +115,9 @@ export class ShipmentService {
               description: `Actualización de estado de shipment: ${newShipmentStatus}`,
             },
           });
-        } catch (e) {}
+        } catch {
+          void 0;
+        }
       }
     }
   }
@@ -133,7 +142,11 @@ export class ShipmentService {
   async bulkUpdatePackages(
     shipmentId: string,
     data: {
-      status?: string;
+      status?:
+        | PackageStatus
+        | ShipmentStatus
+        | 'IN_WAREHOUSE'
+        | 'OUT_FOR_DELIVERY';
       currentWarehouseId?: string;
       latitude?: number;
       longitude?: number;
@@ -151,7 +164,7 @@ export class ShipmentService {
         this.prisma.package.update({
           where: { id: p.id },
           data: {
-            status: data.status ? (data.status as any) : p.status,
+            status: data.status ? (data.status as PackageStatus) : p.status,
             currentWarehouseId: data.currentWarehouseId ?? p.currentWarehouseId,
             latitude: data.latitude ?? p.latitude,
             longitude: data.longitude ?? p.longitude,
@@ -193,7 +206,9 @@ export class ShipmentService {
               description: `Actualización masiva de paquetes a estado: ${data.status}`,
             },
           });
-        } catch (e) { }
+        } catch {
+          void 0;
+        }
       }
     }
 

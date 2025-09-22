@@ -13,6 +13,7 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { ApiSuccessMessage } from '../../common/decorators/response.decorator';
 
 @ApiTags('order')
 @Controller('order')
@@ -21,30 +22,35 @@ export class OrderController {
 
   @Post()
   @ApiOperation({ summary: 'Crear orden' })
+  @ApiSuccessMessage('Orden creada correctamente')
   create(@Body() dto: CreateOrderDto) {
     return this.orderService.create(dto);
   }
 
   @Get()
   @ApiOperation({ summary: 'Listar órdenes' })
+  @ApiSuccessMessage('Listado de órdenes obtenido')
   findAll(@Query() query: PaginationQueryDto) {
     return this.orderService.findAll(query);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Detalle orden' })
+  @ApiSuccessMessage('Orden obtenida')
   findOne(@Param('id') id: string) {
     return this.orderService.findOne(id);
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Actualizar orden' })
+  @ApiSuccessMessage('Orden actualizada correctamente')
   update(@Param('id') id: string, @Body() dto: UpdateOrderDto) {
     return this.orderService.update(id, dto);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Eliminar orden' })
+  @ApiSuccessMessage('Orden eliminada correctamente')
   remove(@Param('id') id: string) {
     return this.orderService.remove(id);
   }

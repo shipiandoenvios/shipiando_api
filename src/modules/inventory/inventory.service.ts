@@ -6,6 +6,8 @@ import {
   PaginationQueryDto,
   PaginatedResult,
 } from '../../common/dto/pagination-query.dto';
+import { buildPaginatedResult } from '../../common/utils/pagination.util';
+import type { Inventory } from '@prisma/client';
 
 @Injectable()
 export class InventoryService {
@@ -15,7 +17,9 @@ export class InventoryService {
     return this.prisma.inventory.create({ data });
   }
 
-  async findAll(params?: PaginationQueryDto): Promise<PaginatedResult<any>> {
+  async findAll(
+    params?: PaginationQueryDto,
+  ): Promise<PaginatedResult<Inventory>> {
     const {
       page = 1,
       limit = 20,
@@ -23,7 +27,7 @@ export class InventoryService {
       sortOrder = 'asc',
     } = params || {};
     const skip = (page - 1) * limit;
-    const [total, data] = await this.prisma.$transaction([
+    const [total, items] = await this.prisma.$transaction([
       this.prisma.inventory.count(),
       this.prisma.inventory.findMany({
         skip,
@@ -31,10 +35,7 @@ export class InventoryService {
         orderBy: { [sortBy]: sortOrder },
       }),
     ]);
-    return {
-      data,
-      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
-    };
+    return buildPaginatedResult(items, total, page, limit);
   }
 
   async findOne(id: string) {

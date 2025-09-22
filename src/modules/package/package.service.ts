@@ -1,14 +1,50 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CreatePackageDto } from './dto/create-package.dto';
+import {
+  CreatePackageDto,
+  PackageStatus as DtoPackageStatus,
+} from './dto/create-package.dto';
 import { UpdatePackageDto } from './dto/update-package.dto';
 import {
   PaginationQueryDto,
   PaginatedResult,
 } from 'src/common/dto/pagination-query.dto';
+import { buildPaginatedResult } from '../../common/utils/pagination.util';
 import { randomBytes } from 'crypto';
-import { TrackingEventType } from '@prisma/client';
-import { Package, Shipment, Carrier, Address, Warehouse, Vehicle, TrackingEvent } from '@prisma/client';
+import {
+  TrackingEventType,
+  PackageStatus as PrismaPackageStatus,
+} from '@prisma/client';
+
+type ShipmentContext = {
+  id: string;
+  status: Shipment['status'];
+  carrier?: Carrier | null;
+  origin?: Address | null;
+  destination?: Address | null;
+  currentWarehouse?: Warehouse | null;
+  destinationWarehouse?: Warehouse | null;
+  vehicle?: Vehicle | null;
+  externalTrackingCode?: string | null;
+  shippedAt?: Date | null;
+  deliveredAt?: Date | null;
+  packages?: Package[] | null;
+  events?: TrackingEvent[] | null;
+};
+
+type FullContext = {
+  package: Package & { origin?: Address | null; destination?: Address | null };
+  shipment: ShipmentContext | null;
+};
+import {
+  Package,
+  Shipment,
+  Carrier,
+  Address,
+  Warehouse,
+  Vehicle,
+  TrackingEvent,
+} from '@prisma/client';
 
 @Injectable()
 export class PackageService {
@@ -27,16 +63,25 @@ export class PackageService {
     },
   };
 
-  private async generateUniqueTrackingCode(prefix = 'PKG', attempts = 5): Promise<string> {
+  private async generateUniqueTrackingCode(
+    prefix = 'PKG',
+    attempts = 5,
+  ): Promise<string> {
     for (let i = 0; i < attempts; i++) {
       const candidate = `${prefix}-${randomBytes(5).toString('hex').toUpperCase()}`;
-      const exists = await this.prisma.package.findUnique({ where: { trackingCode: candidate } });
+      const exists = await this.prisma.package.findUnique({
+        where: { trackingCode: candidate },
+      });
       if (!exists) return candidate;
     }
-    throw new Error('No se pudo generar trackingCode único tras varios intentos');
+    throw new Error(
+      'No se pudo generar trackingCode único tras varios intentos',
+    );
   }
 
-  private mapPackageStatusToEventType(status: string | undefined): TrackingEventType | null {
+  private mapPackageStatusToEventType(
+    status: string | undefined,
+  ): TrackingEventType | null {
     switch (status) {
       case 'CREATED':
         return TrackingEventType.CREATED;
@@ -61,7 +106,13 @@ export class PackageService {
     }
   }
 
-  private async createTrackingEventForPackage(opts: { shipmentId?: string | null; status?: string; locationHint?: string; latitude?: number; longitude?: number; }) {
+  private async createTrackingEventForPackage(opts: {
+    shipmentId?: string | null;
+    status?: string;
+    locationHint?: string;
+    latitude?: number;
+    longitude?: number;
+  }) {
     if (!opts.shipmentId) return;
     const eventType = this.mapPackageStatusToEventType(opts.status);
     if (!eventType) return;
@@ -69,21 +120,20 @@ export class PackageService {
       await this.prisma.trackingEvent.create({
         data: {
           shipmentId: opts.shipmentId,
-            code: `PKG_${opts.status}`,
-            type: eventType,
-            description: `Actualización de estado de paquete: ${opts.status}`,
-            location: opts.locationHint,
-            latitude: opts.latitude,
-            longitude: opts.longitude,
+          code: `PKG_${opts.status}`,
+          type: eventType,
+          description: `Actualización de estado de paquete: ${opts.status}`,
+          location: opts.locationHint,
+          latitude: opts.latitude,
+          longitude: opts.longitude,
         },
       });
-    } catch (e) {}
+    } catch {
+      void 0;
+    }
   }
 
-  private filterContext(
-    full: { package: any; shipment: any },
-    viewerType: string,
-  ) {
+  private filterContext(full: FullContext, viewerType: string) {
     const vt = (viewerType || 'PUBLIC').toUpperCase();
     const basePkg = full.package;
     const baseShipment = full.shipment;
@@ -99,10 +149,18 @@ export class PackageService {
       widthCm: basePkg.widthCm,
       weightKg: basePkg.weightKg,
       origin: basePkg.origin
-        ? { id: basePkg.origin.id, city: basePkg.origin.city, country: basePkg.origin.country }
+        ? {
+            id: basePkg.origin.id,
+            city: basePkg.origin.city,
+            country: basePkg.origin.country,
+          }
         : null,
       destination: basePkg.destination
-        ? { id: basePkg.destination.id, city: basePkg.destination.city, country: basePkg.destination.country }
+        ? {
+            id: basePkg.destination.id,
+            city: basePkg.destination.city,
+            country: basePkg.destination.country,
+          }
         : null,
     };
 
@@ -116,9 +174,12 @@ export class PackageService {
             ? { id: baseShipment.origin.id, city: baseShipment.origin.city }
             : null,
           destination: baseShipment.destination
-            ? { id: baseShipment.destination.id, city: baseShipment.destination.city }
+            ? {
+                id: baseShipment.destination.id,
+                city: baseShipment.destination.city,
+              }
             : null,
-          events: baseShipment.events?.map((e: any) => ({
+          events: baseShipment.events?.map((e: TrackingEvent) => ({
             code: e.code,
             type: e.type,
             eventAt: e.eventAt,
@@ -126,10 +187,15 @@ export class PackageService {
           })),
         }
       : null;
-    if (vt === 'PUBLIC') return { package: publicPackage, shipment: publicShipment };
+    if (vt === 'PUBLIC')
+      return { package: publicPackage, shipment: publicShipment };
     if (vt === 'USER')
       return {
-        package: { ...publicPackage, latitude: basePkg.latitude, longitude: basePkg.longitude },
+        package: {
+          ...publicPackage,
+          latitude: basePkg.latitude,
+          longitude: basePkg.longitude,
+        },
         shipment: publicShipment,
       };
     if (vt === 'CLIENT')
@@ -148,7 +214,7 @@ export class PackageService {
         shipment: baseShipment
           ? {
               ...baseShipment,
-              packages: baseShipment.packages?.map((p: any) => ({
+              packages: baseShipment.packages?.map((p: Package) => ({
                 id: p.id,
                 trackingCode: p.trackingCode,
                 status: p.status,
@@ -166,16 +232,18 @@ export class PackageService {
       origin?: Address | null;
       destination?: Address | null;
     },
-    shipment: (Shipment & {
-      carrier?: Carrier | null;
-      origin?: Address | null;
-      destination?: Address | null;
-      currentWarehouse?: Warehouse | null;
-      destinationWarehouse?: Warehouse | null;
-      vehicle?: Vehicle | null;
-      packages?: Package[];
-      events?: TrackingEvent[];
-    }) | null,
+    shipment:
+      | (Shipment & {
+          carrier?: Carrier | null;
+          origin?: Address | null;
+          destination?: Address | null;
+          currentWarehouse?: Warehouse | null;
+          destinationWarehouse?: Warehouse | null;
+          vehicle?: Vehicle | null;
+          packages?: Package[];
+          events?: TrackingEvent[];
+        })
+      | null,
     viewerType?: string,
   ) {
     const full = {
@@ -213,12 +281,14 @@ export class PackageService {
       }
     }
     if (!data.status) {
-      data.status = 'CREATED' as any;
+      data.status = DtoPackageStatus.CREATED;
     }
     return this.prisma.package.create({ data });
   }
 
-  async findAll(params?: PaginationQueryDto): Promise<PaginatedResult<any>> {
+  async findAll(
+    params?: PaginationQueryDto,
+  ): Promise<PaginatedResult<Package>> {
     const {
       page = 1,
       limit = 20,
@@ -226,7 +296,7 @@ export class PackageService {
       sortOrder = 'asc',
     } = params || {};
     const skip = (page - 1) * limit;
-    const [total, data] = await this.prisma.$transaction([
+    const [total, items] = await this.prisma.$transaction([
       this.prisma.package.count(),
       this.prisma.package.findMany({
         skip,
@@ -234,10 +304,7 @@ export class PackageService {
         orderBy: { [sortBy]: sortOrder },
       }),
     ]);
-    return {
-      data,
-      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
-    };
+    return buildPaginatedResult(items, total, page, limit);
   }
 
   async findOne(id: string) {
@@ -252,16 +319,18 @@ export class PackageService {
       include: { origin: true, destination: true },
     });
     if (!pkg) throw new NotFoundException('Package not found');
-    let shipment: (Shipment & {
-      carrier?: Carrier | null;
-      origin?: Address | null;
-      destination?: Address | null;
-      currentWarehouse?: Warehouse | null;
-      destinationWarehouse?: Warehouse | null;
-      vehicle?: Vehicle | null;
-      packages?: Package[];
-      events?: TrackingEvent[];
-    }) | null = null;
+    let shipment:
+      | (Shipment & {
+          carrier?: Carrier | null;
+          origin?: Address | null;
+          destination?: Address | null;
+          currentWarehouse?: Warehouse | null;
+          destinationWarehouse?: Warehouse | null;
+          vehicle?: Vehicle | null;
+          packages?: Package[];
+          events?: TrackingEvent[];
+        })
+      | null = null;
     if (pkg.shipmentId) {
       shipment = await this.prisma.shipment.findUnique({
         where: { id: pkg.shipmentId },
@@ -279,22 +348,27 @@ export class PackageService {
     return pkg;
   }
 
-  async findByTrackingCodeWithContext(trackingCode: string, viewerType?: string) {
+  async findByTrackingCodeWithContext(
+    trackingCode: string,
+    viewerType?: string,
+  ) {
     const pkg = await this.prisma.package.findUnique({
       where: { trackingCode },
       include: { origin: true, destination: true },
     });
     if (!pkg) throw new NotFoundException('Package not found');
-    let shipment: (Shipment & {
-      carrier?: Carrier | null;
-      origin?: Address | null;
-      destination?: Address | null;
-      currentWarehouse?: Warehouse | null;
-      destinationWarehouse?: Warehouse | null;
-      vehicle?: Vehicle | null;
-      packages?: Package[];
-      events?: TrackingEvent[];
-    }) | null = null;
+    let shipment:
+      | (Shipment & {
+          carrier?: Carrier | null;
+          origin?: Address | null;
+          destination?: Address | null;
+          currentWarehouse?: Warehouse | null;
+          destinationWarehouse?: Warehouse | null;
+          vehicle?: Vehicle | null;
+          packages?: Package[];
+          events?: TrackingEvent[];
+        })
+      | null = null;
     if (pkg.shipmentId) {
       shipment = await this.prisma.shipment.findUnique({
         where: { id: pkg.shipmentId },
@@ -317,7 +391,7 @@ export class PackageService {
   async scanAndUpdate(
     id: string,
     data: {
-      status?: string;
+      status?: PrismaPackageStatus;
       latitude?: number;
       longitude?: number;
       currentWarehouseId?: string;
@@ -328,7 +402,7 @@ export class PackageService {
     const updated = await this.prisma.package.update({
       where: { id },
       data: {
-        ...(['status'].includes('status') ? { status: data.status as any } : {}),
+        ...(data.status !== undefined ? { status: data.status } : {}),
         latitude: data.latitude ?? pkg.latitude,
         longitude: data.longitude ?? pkg.longitude,
         currentWarehouseId: data.currentWarehouseId ?? pkg.currentWarehouseId,
@@ -350,7 +424,7 @@ export class PackageService {
   async scanAndUpdateWithContext(
     id: string,
     data: {
-      status?: string;
+      status?: PrismaPackageStatus;
       latitude?: number;
       longitude?: number;
       currentWarehouseId?: string;
@@ -358,7 +432,18 @@ export class PackageService {
     },
   ) {
     const updated = await this.scanAndUpdate(id, data);
-    let shipment: any = null;
+    let shipment:
+      | (Shipment & {
+          carrier?: Carrier | null;
+          origin?: Address | null;
+          destination?: Address | null;
+          currentWarehouse?: Warehouse | null;
+          destinationWarehouse?: Warehouse | null;
+          vehicle?: Vehicle | null;
+          packages?: Package[];
+          events?: TrackingEvent[];
+        })
+      | null = null;
     if (updated.shipmentId) {
       shipment = await this.prisma.shipment.findUnique({
         where: { id: updated.shipmentId },

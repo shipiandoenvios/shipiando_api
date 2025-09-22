@@ -6,6 +6,8 @@ import {
   PaginationQueryDto,
   PaginatedResult,
 } from '../../common/dto/pagination-query.dto';
+import { buildPaginatedResult } from '../../common/utils/pagination.util';
+import type { User } from '@prisma/client';
 
 @Injectable()
 export class UserService {
@@ -15,7 +17,7 @@ export class UserService {
     return this.prisma.user.create({ data });
   }
 
-  async findAll(params?: PaginationQueryDto): Promise<PaginatedResult<any>> {
+  async findAll(params?: PaginationQueryDto): Promise<PaginatedResult<User>> {
     const {
       page = 1,
       limit = 20,
@@ -23,7 +25,7 @@ export class UserService {
       sortOrder = 'asc',
     } = params || {};
     const skip = (page - 1) * limit;
-    const [total, data] = await this.prisma.$transaction([
+    const [total, items] = await this.prisma.$transaction([
       this.prisma.user.count(),
       this.prisma.user.findMany({
         skip,
@@ -31,10 +33,7 @@ export class UserService {
         orderBy: { [sortBy]: sortOrder },
       }),
     ]);
-    return {
-      data,
-      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
-    };
+    return buildPaginatedResult(items, total, page, limit);
   }
   async findOne(id: string) {
     const user = await this.prisma.user.findUnique({ where: { id } });

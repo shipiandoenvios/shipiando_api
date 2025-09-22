@@ -2,10 +2,12 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 import {
-  PaginationQueryDto,
+  buildPaginatedResult,
   PaginatedResult,
-} from '../../common/dto/pagination-query.dto';
+} from '../../common/utils/pagination.util';
+import type { Product } from '@prisma/client';
 
 @Injectable()
 export class ProductService {
@@ -15,7 +17,9 @@ export class ProductService {
     return this.prisma.product.create({ data });
   }
 
-  async findAll(params?: PaginationQueryDto): Promise<PaginatedResult<any>> {
+  async findAll(
+    params?: PaginationQueryDto,
+  ): Promise<PaginatedResult<Product>> {
     const {
       page = 1,
       limit = 20,
@@ -23,7 +27,7 @@ export class ProductService {
       sortOrder = 'asc',
     } = params || {};
     const skip = (page - 1) * limit;
-    const [total, data] = await this.prisma.$transaction([
+    const [total, items] = await this.prisma.$transaction([
       this.prisma.product.count(),
       this.prisma.product.findMany({
         skip,
@@ -31,10 +35,7 @@ export class ProductService {
         orderBy: { [sortBy]: sortOrder },
       }),
     ]);
-    return {
-      data,
-      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
-    };
+    return buildPaginatedResult(items, total, page, limit);
   }
 
   async findOne(id: string) {
