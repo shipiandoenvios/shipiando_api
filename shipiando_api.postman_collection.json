@@ -1,0 +1,1024 @@
+{
+  "info": {
+    "name": "Shipiando API",
+    "_postman_id": "00000000-0000-0000-0000-000000000000",
+    "description": "Colección de endpoints Shipiando",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3001/api"
+    }
+  ],
+  "item": [
+    {
+      "name": "user",
+      "item": [
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/user",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\":\"user@example.com\",\"passwordHash\":\"changeme\"}"
+            }
+          }
+        },
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/user"
+          }
+        },
+        {
+          "name": "Get User",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/user/:id"
+          }
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/user/:id",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"Updated\"}"
+            }
+          }
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/user/:id"
+          }
+        }
+      ]
+    },
+    {
+      "name": "role",
+      "item": [
+        {
+          "name": "Create Role",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/role",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"ADMIN\"}"
+            }
+          }
+        },
+        {
+          "name": "List Roles",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/role"
+          }
+        },
+        {
+          "name": "Get Role",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/role/:id"
+          }
+        },
+        {
+          "name": "Update Role",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/role/:id",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"USER\"}"
+            }
+          }
+        },
+        {
+          "name": "Delete Role",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/role/:id"
+          }
+        }
+      ]
+    },
+    {
+      "name": "client",
+      "item": [
+        {
+          "name": "Create Client",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/client",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"Tienda Azul\"}"
+            }
+          }
+        },
+        {
+          "name": "List Clients",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/client"
+          }
+        },
+        {
+          "name": "Get Client",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/client/:id"
+          }
+        },
+        {
+          "name": "Update Client",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/client/:id",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"phone\":\"111\"}"
+            }
+          }
+        },
+        {
+          "name": "Delete Client",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/client/:id"
+          }
+        }
+      ]
+    },
+    {
+      "name": "address",
+      "item": [
+        {
+          "name": "Create Address",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/address",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"city\":\"CABA\",\"country\":\"AR\",\"street\":\"Calle 123\"}"
+            }
+          }
+        },
+        {
+          "name": "List Addresses",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/address"
+          }
+        },
+        {
+          "name": "Get Address",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/address/:id"
+          }
+        },
+        {
+          "name": "Update Address",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/address/:id",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"label\":\"Depósito\"}"
+            }
+          }
+        },
+        {
+          "name": "Delete Address",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/address/:id"
+          }
+        }
+      ]
+    },
+    {
+      "name": "product-category",
+      "item": [
+        {
+          "name": "Create Product Category",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/product-category",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"Accesorios\"}"
+            }
+          }
+        },
+        {
+          "name": "List Product Categories",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/product-category"
+          }
+        },
+        {
+          "name": "Get Product Category",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/product-category/:id"
+          }
+        },
+        {
+          "name": "Update Product Category",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/product-category/:id",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"Ropa\"}"
+            }
+          }
+        },
+        {
+          "name": "Delete Product Category",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/product-category/:id"
+          }
+        }
+      ]
+    },
+    {
+      "name": "product",
+      "item": [
+        {
+          "name": "Create Product",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/product",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"Remera\",\"sku\":\"SKU001\",\"price\":49.9}"
+            }
+          }
+        },
+        {
+          "name": "List Products",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/product"
+          }
+        },
+        {
+          "name": "Get Product",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/product/:id"
+          }
+        },
+        {
+          "name": "Update Product",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/product/:id",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"price\":59.9}"
+            }
+          }
+        },
+        {
+          "name": "Delete Product",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/product/:id"
+          }
+        }
+      ]
+    },
+    {
+      "name": "inventory",
+      "item": [
+        {
+          "name": "Create Inventory",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/inventory",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"productId\":\"<PRODUCT_ID>\",\"warehouseId\":\"<WAREHOUSE_ID>\",\"quantity\":100}"
+            }
+          }
+        },
+        {
+          "name": "List Inventories",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/inventory"
+          }
+        },
+        {
+          "name": "Get Inventory",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/inventory/:id"
+          }
+        },
+        {
+          "name": "Update Inventory",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/inventory/:id",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"quantity\":120}"
+            }
+          }
+        },
+        {
+          "name": "Delete Inventory",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/inventory/:id"
+          }
+        }
+      ]
+    },
+    {
+      "name": "order",
+      "item": [
+        {
+          "name": "Create Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/order",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"clientId\":\"<CLIENT_ID>\",\"total\":129.99}"
+            }
+          }
+        },
+        {
+          "name": "List Orders",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/order"
+          }
+        },
+        {
+          "name": "Get Order",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/order/:id"
+          }
+        },
+        {
+          "name": "Update Order",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/order/:id",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"status\":\"CONFIRMED\"}"
+            }
+          }
+        },
+        {
+          "name": "Delete Order",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/order/:id"
+          }
+        }
+      ]
+    },
+    {
+      "name": "invoice",
+      "item": [
+        {
+          "name": "Create Invoice",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/invoice",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"orderId\":\"<ORDER_ID>\",\"status\":\"PENDING\"}"
+            }
+          }
+        },
+        {
+          "name": "List Invoices",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/invoice"
+          }
+        },
+        {
+          "name": "Get Invoice",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/invoice/:id"
+          }
+        },
+        {
+          "name": "Update Invoice",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/invoice/:id",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"status\":\"PAID\"}"
+            }
+          }
+        },
+        {
+          "name": "Delete Invoice",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/invoice/:id"
+          }
+        }
+      ]
+    },
+    {
+      "name": "package",
+      "item": [
+        {
+          "name": "Create Package",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/package",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"weightKg\":1.2}"
+            }
+          }
+        },
+        {
+          "name": "List Packages",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/package"
+          }
+        },
+        {
+          "name": "Get Package (raw)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/package/:id"
+          }
+        },
+        {
+          "name": "Get Package Context",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/package/:id/context?viewerType=PUBLIC"
+          }
+        },
+        {
+          "name": "Get Package By Tracking (Context)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/package/tracking/:trackingCode?viewerType=PUBLIC"
+          }
+        },
+        {
+          "name": "Scan & Update Package",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/package/:id/scan?viewerType=WAREHOUSE",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"status\":\"IN_WAREHOUSE\"}"
+            }
+          }
+        },
+        {
+          "name": "Update Package",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/package/:id",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"status\":\"IN_TRANSIT\"}"
+            }
+          }
+        },
+        {
+          "name": "Delete Package",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/package/:id"
+          }
+        }
+      ]
+    },
+    {
+      "name": "shipment",
+      "item": [
+        {
+          "name": "Create Shipment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/shipment",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"status\":\"CREATED\"}"
+            }
+          }
+        },
+        {
+          "name": "List Shipments",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/shipment"
+          }
+        },
+        {
+          "name": "Get Shipment",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/shipment/:id"
+          }
+        },
+        {
+          "name": "Update Shipment",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/shipment/:id",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"status\":\"IN_TRANSIT\"}"
+            }
+          }
+        },
+        {
+          "name": "Bulk Update Shipment Packages",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/shipment/:id/packages/bulk-update",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"status\":\"IN_TRANSIT\"}"
+            }
+          }
+        },
+        {
+          "name": "Delete Shipment",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/shipment/:id"
+          }
+        }
+      ]
+    },
+    {
+      "name": "tracking-event",
+      "item": [
+        {
+          "name": "Create Tracking Event",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/tracking-event",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"shipmentId\":\"<SHIPMENT_ID>\",\"type\":\"IN_TRANSIT\"}"
+            }
+          }
+        },
+        {
+          "name": "List Tracking Events",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/tracking-event"
+          }
+        },
+        {
+          "name": "Get Tracking Event",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/tracking-event/:id"
+          }
+        },
+        {
+          "name": "Update Tracking Event",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/tracking-event/:id",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"description\":\"Avance\"}"
+            }
+          }
+        },
+        {
+          "name": "Delete Tracking Event",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/tracking-event/:id"
+          }
+        }
+      ]
+    },
+    {
+      "name": "warehouse",
+      "item": [
+        {
+          "name": "Create Warehouse",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/warehouse",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"Depósito Central\"}"
+            }
+          }
+        },
+        {
+          "name": "List Warehouses",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/warehouse"
+          }
+        },
+        {
+          "name": "Get Warehouse",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/warehouse/:id"
+          }
+        },
+        {
+          "name": "Update Warehouse",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/warehouse/:id",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"CD Norte\"}"
+            }
+          }
+        },
+        {
+          "name": "Delete Warehouse",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/warehouse/:id"
+          }
+        }
+      ]
+    },
+    {
+      "name": "vehicle",
+      "item": [
+        {
+          "name": "Create Vehicle",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/vehicle",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"plate\":\"AA123BB\"}"
+            }
+          }
+        },
+        {
+          "name": "List Vehicles",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/vehicle"
+          }
+        },
+        {
+          "name": "Get Vehicle",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/vehicle/:id"
+          }
+        },
+        {
+          "name": "Update Vehicle",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/vehicle/:id",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"capacityKg\":3000}"
+            }
+          }
+        },
+        {
+          "name": "Delete Vehicle",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/vehicle/:id"
+          }
+        }
+      ]
+    },
+    {
+      "name": "carrier",
+      "item": [
+        {
+          "name": "Create Carrier",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/carrier",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"MiCarrier\"}"
+            }
+          }
+        },
+        {
+          "name": "List Carriers",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/carrier"
+          }
+        },
+        {
+          "name": "Get Carrier",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/carrier/:id"
+          }
+        },
+        {
+          "name": "Update Carrier",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/carrier/:id",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"code\":\"MC01\"}"
+            }
+          }
+        },
+        {
+          "name": "Delete Carrier",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/carrier/:id"
+          }
+        }
+      ]
+    },
+    {
+      "name": "client-user",
+      "item": [
+        {
+          "name": "Create ClientUser link",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/client-user",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": \"<CLIENT_ID>\",\n  \"userId\": \"<USER_ID>\",\n  \"role\": \"ADMIN\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get ClientUser by clientId",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/client-user/by-client/<CLIENT_ID>"
+          }
+        },
+        {
+          "name": "Get ClientUser by userId",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/client-user/by-user/<USER_ID>"
+          }
+        },
+        {
+          "name": "Update ClientUser role",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/client-user/:id",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"USER\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete ClientUser link",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/client-user/:id"
+          }
+        }
+      ]
+    }
+  ]
+}

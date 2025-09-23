@@ -1,0 +1,483 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum InventoryAllocationStatus {
+  PENDING
+  ALLOCATED
+  PICKED
+  SHIPPED
+  CANCELLED
+}
+
+enum InventoryMovementType {
+  IN
+  OUT
+  TRANSFER
+  ADJUSTMENT
+}
+
+enum InventoryZoneType {
+  PICKING
+  STORAGE
+  RECEIVING
+  SHIPPING
+}
+
+enum InvoiceStatus {
+  CANCELLED
+  PAID
+  PENDING
+}
+
+enum OrderStatus {
+  CANCELLED
+  CONFIRMED
+  FULFILLED
+  PENDING
+}
+
+enum PackageStatus {
+  CREATED
+  AWAITING_CHECKIN
+  AT_ORIGIN
+  IN_WAREHOUSE
+  IN_TRANSIT
+  OUT_FOR_DELIVERY
+  DELIVERED
+  RETURNED
+  EXCEPTION
+}
+
+enum ReturnStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  RECEIVED
+  COMPLETED
+}
+
+enum ShipmentStatus {
+  CANCELLED
+  CREATED
+  DELIVERED
+  IN_TRANSIT
+  RETURNED
+}
+
+enum TrackingEventType {
+  CREATED
+  LABEL_PRINTED
+  PICKED_UP
+  IN_TRANSIT
+  HUB_TRANSFER
+  OUT_FOR_DELIVERY
+  DELIVERED
+  DELAYED
+  EXCEPTION
+  RETURN_INITIATED
+  RETURNED
+}
+
+enum AddressType {
+  USER_HOME
+  USER_WORK
+  CLIENT_ORIGIN
+  CLIENT_BILLING
+  WAREHOUSE
+  PICKUP_POINT
+}
+
+model Address {
+  id            String       @id @default(uuid())
+  city          String
+  country       String
+  street        String
+  addressType   AddressType?
+  clientId      String?
+  userId        String?
+  client        Client?      @relation(fields: [clientId], references: [id])
+  user          User?        @relation(fields: [userId], references: [id])
+  label         String?
+  postalCode    String?
+  state         String?
+  street2       String?
+  shipmentsFrom Shipment[]   @relation("ShipmentOrigin")
+  shipmentsTo   Shipment[]   @relation("ShipmentDestination")
+  warehouse     Warehouse?
+  packagesFrom  Package[]    @relation("PackageOrigin")
+  packagesTo    Package[]    @relation("PackageDestination")
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  deletedAt     DateTime?
+}
+
+model Carrier {
+  id        String     @id @default(uuid())
+  code      String?    @unique
+  createdAt DateTime   @default(now())
+  name      String
+  shipments Shipment[]
+  updatedAt DateTime   @updatedAt
+  vehicles  Vehicle[]
+}
+
+model Client {
+  id          String       @id @default(uuid())
+  name        String
+  email       String?      @unique
+  phone       String?
+  products    Product[]
+  warehouses  Warehouse[]
+  clientUsers ClientUser[]
+  addresses   Address[]
+  orders      Order[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  deletedAt   DateTime?
+}
+
+model ClientUser {
+  id        String   @id @default(uuid())
+  clientId  String
+  userId    String
+  role      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  client Client @relation(fields: [clientId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@unique([clientId, userId])
+}
+
+model Inventory {
+  id          String                @id @default(uuid())
+  allocations InventoryAllocation[]
+  createdAt   DateTime              @default(now())
+  movements   InventoryMovement[]
+  product     Product               @relation(fields: [productId], references: [id])
+  productId   String
+  quantity    Int
+  updatedAt   DateTime              @updatedAt
+  warehouse   Warehouse             @relation(fields: [warehouseId], references: [id])
+  warehouseId String
+  zone        InventoryZone?        @relation(fields: [zoneId], references: [id])
+  zoneId      String?
+}
+
+model InventoryAllocation {
+  id          String                    @id @default(uuid())
+  inventoryId String
+  orderItemId String
+  quantity    Int
+  status      InventoryAllocationStatus @default(PENDING)
+  inventory   Inventory                 @relation(fields: [inventoryId], references: [id])
+  orderItem   OrderItem                 @relation(fields: [orderItemId], references: [id])
+  createdAt   DateTime                  @default(now())
+  updatedAt   DateTime                  @updatedAt
+  reason      String?
+}
+
+model InventoryMovement {
+  id          String                @id @default(uuid())
+  inventoryId String
+  quantity    Int
+  type        InventoryMovementType
+  orderItemId String?
+  shipmentId  String?
+  returnId    String?
+  inventory   Inventory             @relation(fields: [inventoryId], references: [id])
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  orderItem   OrderItem?            @relation(fields: [orderItemId], references: [id])
+  shipment    Shipment?             @relation(fields: [shipmentId], references: [id])
+  return      Return?               @relation(fields: [returnId], references: [id])
+
+  @@index([orderItemId])
+  @@index([shipmentId])
+  @@index([returnId])
+}
+
+model InventoryZone {
+  id          String            @id @default(uuid())
+  createdAt   DateTime          @default(now())
+  inventories Inventory[]
+  name        String
+  type        InventoryZoneType
+  updatedAt   DateTime          @updatedAt
+  warehouse   Warehouse         @relation(fields: [warehouseId], references: [id])
+  warehouseId String
+}
+
+model Invoice {
+  id        String        @id @default(uuid())
+  amount    Decimal
+  createdAt DateTime      @default(now())
+  issuedAt  DateTime      @default(now())
+  order     Order         @relation(fields: [orderId], references: [id])
+  orderId   String        @unique
+  paidAt    DateTime?
+  status    InvoiceStatus @default(PENDING)
+  updatedAt DateTime      @updatedAt
+}
+
+model Order {
+  id         String      @id @default(uuid())
+  clientId   String
+  client     Client      @relation(fields: [clientId], references: [id])
+  buyerId    String?
+  buyer      User?       @relation("BuyerOrders", fields: [buyerId], references: [id])
+  status     OrderStatus @default(PENDING)
+  total      Decimal?
+  currency   String?
+  orderItems OrderItem[]
+  packages   Package[]
+  invoice    Invoice?
+  returns    Return[]
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  deletedAt  DateTime?
+
+  @@index([clientId])
+  @@index([buyerId])
+}
+
+model OrderItem {
+  id                String                @id @default(uuid())
+  allocations       InventoryAllocation[]
+  createdAt         DateTime              @default(now())
+  order             Order                 @relation(fields: [orderId], references: [id])
+  orderId           String
+  price             Decimal
+  product           Product               @relation(fields: [productId], references: [id])
+  productId         String
+  quantity          Int
+  updatedAt         DateTime              @updatedAt
+  returnItems       ReturnItem[]          @relation("OrderItemToReturnItem")
+  InventoryMovement InventoryMovement[]
+  PackageItem       PackageItem[]
+}
+
+model Package {
+  id                 String        @id @default(uuid())
+  orderId            String?
+  order              Order?        @relation(fields: [orderId], references: [id])
+  shipmentId         String?
+  shipment           Shipment?     @relation(fields: [shipmentId], references: [id])
+  trackingCode       String?       @unique
+  heightCm           Float?
+  lengthCm           Float?
+  widthCm            Float?
+  weightKg           Float?
+  items              PackageItem[]
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  deletedAt          DateTime?
+  originId           String?
+  origin             Address?      @relation("PackageOrigin", fields: [originId], references: [id])
+  destinationId      String?
+  destination        Address?      @relation("PackageDestination", fields: [destinationId], references: [id])
+  currentWarehouseId String?
+  currentWarehouse   Warehouse?    @relation("PackageCurrentWarehouse", fields: [currentWarehouseId], references: [id])
+  status             PackageStatus @default(CREATED)
+  lastStatusAt       DateTime?
+  lastScanAt         DateTime?
+  latitude           Float?
+  longitude          Float?
+
+  @@index([status])
+  @@index([currentWarehouseId])
+}
+
+model PackageItem {
+  id          String    @id @default(uuid())
+  packageId   String
+  orderItemId String
+  quantity    Int
+  package     Package   @relation(fields: [packageId], references: [id])
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id])
+
+  @@unique([packageId, orderItemId])
+}
+
+model Product {
+  id          String                  @id @default(uuid())
+  clientId    String?
+  client      Client?                 @relation(fields: [clientId], references: [id])
+  name        String
+  sku         String
+  description String?
+  price       Decimal
+  currency    String?
+  categoryId  String?
+  category    ProductCategory?        @relation(fields: [categoryId], references: [id])
+  attributes  ProductAttributeValue[]
+  orderItems  OrderItem[]
+  inventories Inventory[]
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+  deletedAt   DateTime?
+
+  @@index([clientId])
+}
+
+model ProductAttribute {
+  id          String                  @id @default(uuid())
+  createdAt   DateTime                @default(now())
+  description String?
+  name        String
+  updatedAt   DateTime                @updatedAt
+  values      ProductAttributeValue[]
+}
+
+model ProductAttributeValue {
+  id          String           @id @default(uuid())
+  attribute   ProductAttribute @relation(fields: [attributeId], references: [id])
+  attributeId String
+  createdAt   DateTime         @default(now())
+  product     Product          @relation(fields: [productId], references: [id])
+  productId   String
+  updatedAt   DateTime         @updatedAt
+  value       String
+}
+
+model ProductCategory {
+  id          String    @id @default(uuid())
+  createdAt   DateTime  @default(now())
+  description String?
+  name        String
+  products    Product[]
+  updatedAt   DateTime  @updatedAt
+}
+
+model Return {
+  id                String              @id @default(uuid())
+  orderId           String
+  order             Order               @relation(fields: [orderId], references: [id])
+  status            ReturnStatus
+  reason            String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  items             ReturnItem[]
+  InventoryMovement InventoryMovement[]
+}
+
+model ReturnItem {
+  id          String    @id @default(uuid())
+  returnId    String
+  orderItemId String
+  quantity    Int
+  return      Return    @relation(fields: [returnId], references: [id])
+  orderItem   OrderItem @relation("OrderItemToReturnItem", fields: [orderItemId], references: [id])
+
+  @@unique([returnId, orderItemId])
+}
+
+model Role {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  name      String   @unique
+  updatedAt DateTime @updatedAt
+  users     User[]
+}
+
+model Shipment {
+  id                     String              @id @default(uuid())
+  carrierId              String?
+  carrier                Carrier?            @relation(fields: [carrierId], references: [id])
+  originId               String?
+  origin                 Address?            @relation("ShipmentOrigin", fields: [originId], references: [id])
+  destinationId          String?
+  destination            Address?            @relation("ShipmentDestination", fields: [destinationId], references: [id])
+  currentWarehouseId     String?
+  currentWarehouse       Warehouse?          @relation("CurrentWarehouse", fields: [currentWarehouseId], references: [id])
+  destinationWarehouseId String?
+  destinationWarehouse   Warehouse?          @relation("DestinationWarehouse", fields: [destinationWarehouseId], references: [id])
+  warehouseId            String?
+  warehouse              Warehouse?          @relation("WarehouseShipments", fields: [warehouseId], references: [id])
+  vehicleId              String?
+  vehicle                Vehicle?            @relation(fields: [vehicleId], references: [id])
+  externalTrackingCode   String?
+  shippedAt              DateTime?
+  deliveredAt            DateTime?
+  status                 ShipmentStatus      @default(CREATED)
+  packages               Package[]
+  events                 TrackingEvent[]
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+  deletedAt              DateTime?
+  InventoryMovement      InventoryMovement[]
+
+  @@index([carrierId])
+  @@index([vehicleId])
+  @@index([status])
+}
+
+model TrackingEvent {
+  id          String            @id @default(uuid())
+  shipmentId  String
+  shipment    Shipment          @relation(fields: [shipmentId], references: [id])
+  code        String
+  type        TrackingEventType
+  description String?
+  eventAt     DateTime          @default(now())
+  location    String?
+  latitude    Float?
+  longitude   Float?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([shipmentId, eventAt])
+  @@index([type])
+}
+
+model User {
+  id           String       @id @default(uuid())
+  email        String       @unique
+  passwordHash String
+  name         String?
+  roleId       String?
+  role         Role?        @relation(fields: [roleId], references: [id])
+  addresses    Address[]
+  orders       Order[]      @relation("BuyerOrders")
+  clientUsers  ClientUser[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  deletedAt    DateTime?
+}
+
+model Vehicle {
+  id         String     @id @default(uuid())
+  carrierId  String?
+  carrier    Carrier?   @relation(fields: [carrierId], references: [id])
+  plate      String?
+  type       String?
+  capacityKg Float?
+  shipments  Shipment[]
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+}
+
+model Warehouse {
+  id                   String          @id @default(uuid())
+  clientId             String?
+  client               Client?         @relation(fields: [clientId], references: [id])
+  addressId            String?         @unique
+  address              Address?        @relation(fields: [addressId], references: [id])
+  name                 String
+  inventories          Inventory[]
+  inventoryZones       InventoryZone[]
+  shipments            Shipment[]      @relation("WarehouseShipments")
+  currentShipments     Shipment[]      @relation("CurrentWarehouse")
+  destinationShipments Shipment[]      @relation("DestinationWarehouse")
+  packagesCurrent      Package[]       @relation("PackageCurrentWarehouse")
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+  deletedAt            DateTime?
+}
