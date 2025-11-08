@@ -1,3 +1,4 @@
+import { Roles } from '../../common/decorators/roles.decorator';
 import {
   Body,
   Controller,
@@ -7,8 +8,11 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
+import { RolesGuard } from 'src/common/guards/roles.guard';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -16,6 +20,7 @@ import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 import { ApiSuccessMessage } from '../../common/decorators/response.decorator';
 
 @ApiTags('user')
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('user')
 export class UserController {
   constructor(private readonly userService: UserService) {}
@@ -23,6 +28,7 @@ export class UserController {
   @Post()
   @ApiOperation({ summary: 'Crear usuario' })
   @ApiSuccessMessage('Usuario creado correctamente')
+  @Roles('ADMIN', 'USER')
   create(@Body() dto: CreateUserDto) {
     return this.userService.create(dto);
   }
@@ -30,6 +36,7 @@ export class UserController {
   @Get()
   @ApiOperation({ summary: 'Listar usuarios' })
   @ApiSuccessMessage('Listado de usuarios obtenido')
+  @Roles('ADMIN', 'USER', 'CLIENT', 'WAREHOUSE', 'CARRIER', 'STORE')
   findAll(@Query() query: PaginationQueryDto) {
     return this.userService.findAll(query);
   }
@@ -37,6 +44,7 @@ export class UserController {
   @Get(':id')
   @ApiOperation({ summary: 'Detalle usuario' })
   @ApiSuccessMessage('Usuario obtenido')
+  @Roles('ADMIN', 'USER', 'CLIENT', 'WAREHOUSE', 'CARRIER', 'STORE')
   findOne(@Param('id') id: string) {
     return this.userService.findOne(id);
   }
@@ -44,6 +52,7 @@ export class UserController {
   @Patch(':id')
   @ApiOperation({ summary: 'Actualizar usuario' })
   @ApiSuccessMessage('Usuario actualizado correctamente')
+  @Roles('ADMIN', 'USER')
   update(@Param('id') id: string, @Body() dto: UpdateUserDto) {
     return this.userService.update(id, dto);
   }
@@ -51,6 +60,7 @@ export class UserController {
   @Delete(':id')
   @ApiOperation({ summary: 'Eliminar usuario' })
   @ApiSuccessMessage('Usuario eliminado correctamente')
+  @Roles('ADMIN', 'USER')
   remove(@Param('id') id: string) {
     return this.userService.remove(id);
   }

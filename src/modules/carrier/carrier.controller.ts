@@ -1,3 +1,4 @@
+import { Roles } from '../../common/decorators/roles.decorator';
 import {
   Body,
   Controller,
@@ -8,21 +9,26 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { CarrierService } from './carrier.service';
 import { CreateCarrierDto } from './dto/create-carrier.dto';
 import { UpdateCarrierDto } from './dto/update-carrier.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 import { ApiSuccessMessage } from '../../common/decorators/response.decorator';
+import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
+import { RolesGuard } from 'src/common/guards/roles.guard';
 
 @ApiTags('carrier')
 @Controller('carrier')
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class CarrierController {
   constructor(private readonly carrierService: CarrierService) {}
 
   @Post()
   @ApiOperation({ summary: 'Crear carrier' })
   @ApiSuccessMessage('Carrier creado correctamente')
+  @Roles('ADMIN', 'CARRIER')
   create(@Body() dto: CreateCarrierDto) {
     return this.carrierService.create(dto);
   }
@@ -30,6 +36,7 @@ export class CarrierController {
   @Get()
   @ApiOperation({ summary: 'Listar carriers' })
   @ApiSuccessMessage('Listado de carriers obtenido')
+  @Roles('ADMIN', 'CARRIER', 'WAREHOUSE', 'CLIENT', 'USER', 'STORE')
   findAll(@Query() query: PaginationQueryDto) {
     return this.carrierService.findAll(query);
   }
@@ -37,6 +44,7 @@ export class CarrierController {
   @Get(':id')
   @ApiOperation({ summary: 'Obtener carrier por ID' })
   @ApiSuccessMessage('Carrier obtenido')
+  @Roles('ADMIN', 'CARRIER', 'WAREHOUSE', 'CLIENT', 'USER', 'STORE')
   findOne(@Param('id') id: string) {
     return this.carrierService.findOne(id);
   }
@@ -44,6 +52,7 @@ export class CarrierController {
   @Patch(':id')
   @ApiOperation({ summary: 'Actualizar carrier' })
   @ApiSuccessMessage('Carrier actualizado correctamente')
+  @Roles('ADMIN', 'CARRIER')
   update(@Param('id') id: string, @Body() body: UpdateCarrierDto) {
     return this.carrierService.update(id, body);
   }
@@ -51,6 +60,7 @@ export class CarrierController {
   @Delete(':id')
   @ApiOperation({ summary: 'Eliminar carrier' })
   @ApiSuccessMessage('Carrier eliminado correctamente')
+  @Roles('ADMIN', 'CARRIER')
   remove(@Param('id') id: string) {
     return this.carrierService.remove(id);
   }

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   CreatePackageDto,
@@ -313,7 +313,7 @@ export class PackageService {
     return pkg;
   }
 
-  async findOneWithContext(id: string, viewerType?: string) {
+  async findOneWithContext(id: string, viewerType?: string, user?: { id: string; roles?: string[] }) {
     const pkg = await this.prisma.package.findUnique({
       where: { id },
       include: { origin: true, destination: true },
@@ -337,6 +337,23 @@ export class PackageService {
         include: this.shipmentInclude,
       });
     }
+    // Si se solicita un viewerType sensible, validar permisos
+    const vt = (viewerType || 'PUBLIC').toUpperCase();
+    if (['WAREHOUSE', 'CARRIER', 'CLIENT', 'USER'].includes(vt)) {
+      if (!user || !user.roles || !Array.isArray(user.roles)) {
+        throw new ForbiddenException('No autorizado para ver este contexto');
+      }
+      const roleMap: Record<string, string[]> = {
+        WAREHOUSE: ['WAREHOUSE', 'ADMIN'],
+        CARRIER: ['CARRIER', 'ADMIN'],
+        CLIENT: ['CLIENT', 'ADMIN'],
+        USER: ['USER', 'CLIENT', 'ADMIN'],
+      };
+      const allowed = roleMap[vt];
+      if (!allowed.some((r) => user.roles!.includes(r))) {
+        throw new ForbiddenException('No autorizado para ver este contexto');
+      }
+    }
     return this.buildContext(pkg, shipment, viewerType);
   }
 
@@ -351,6 +368,7 @@ export class PackageService {
   async findByTrackingCodeWithContext(
     trackingCode: string,
     viewerType?: string,
+    user?: { id: string; roles?: string[] },
   ) {
     const pkg = await this.prisma.package.findUnique({
       where: { trackingCode },
@@ -374,6 +392,23 @@ export class PackageService {
         where: { id: pkg.shipmentId },
         include: this.shipmentInclude,
       });
+    }
+    // validar viewerType y user igual que en findOneWithContextForUser
+    const vt = (viewerType || 'PUBLIC').toUpperCase();
+    if (['WAREHOUSE', 'CARRIER', 'CLIENT', 'USER'].includes(vt)) {
+      if (!user || !user.roles || !Array.isArray(user.roles)) {
+        throw new ForbiddenException('No autorizado para ver este contexto');
+      }
+      const roleMap: Record<string, string[]> = {
+        WAREHOUSE: ['WAREHOUSE', 'ADMIN'],
+        CARRIER: ['CARRIER', 'ADMIN'],
+        CLIENT: ['CLIENT', 'ADMIN'],
+        USER: ['USER', 'CLIENT', 'ADMIN'],
+      };
+      const allowed = roleMap[vt];
+      if (!allowed.some((r) => user.roles!.includes(r))) {
+        throw new ForbiddenException('No autorizado para ver este contexto');
+      }
     }
     return this.buildContext(pkg, shipment, viewerType);
   }
@@ -430,7 +465,29 @@ export class PackageService {
       currentWarehouseId?: string;
       viewerType?: string;
     },
+    user?: { id: string; roles?: string[] },
   ) {
+    // Validar que el usuario autenticado puede realizar escaneo/actualización
+    const vt = (data.viewerType || '').toUpperCase();
+    if (!user || !user.roles) {
+      throw new ForbiddenException('No autorizado');
+    }
+    // Solo WAREHOUSE o CARRIER (o ADMIN) pueden actualizar por escaneo
+    const allowed = ['WAREHOUSE', 'CARRIER', 'ADMIN'];
+    const has = user.roles.some((r) => allowed.includes(r));
+    if (!has) {
+      throw new ForbiddenException('No autorizado: solo warehouse/carrier pueden modificar estado por escaneo');
+    }
+    // Si viewerType está presente, validar que coincide con rol o es ADMIN
+    if (vt) {
+      if (!['WAREHOUSE', 'CARRIER'].includes(vt) && vt !== 'ADMIN') {
+        throw new BadRequestException('viewerType inválido para escaneo');
+      }
+      if (vt !== 'ADMIN' && !user.roles.includes(vt)) {
+        throw new ForbiddenException('viewerType no coincide con roles del usuario');
+      }
+    }
+
     const updated = await this.scanAndUpdate(id, data);
     let shipment:
       | (Shipment & {
