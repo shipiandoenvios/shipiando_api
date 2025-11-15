@@ -47,7 +47,7 @@ export class PackageController {
   @ApiSuccessMessage('Listado de paquetes obtenido')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN','WAREHOUSE','CARRIER','CLIENT','USER','STORE')
-  findAll(@Query() query: PaginationQueryDto) {
+  findAll(@Query() query: PackageListQueryDto) {
     return this.packageService.findAll(query);
   }
 
@@ -120,6 +120,7 @@ export class PackageController {
         viewerType,
       },
       req?.user,
+      req,
     );
   }
 

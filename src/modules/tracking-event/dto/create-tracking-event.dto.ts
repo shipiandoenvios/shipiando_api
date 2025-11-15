@@ -7,12 +7,14 @@ import {
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
+// Enum alineado con el frontend y contratos compartidos
 export enum TrackingEventType {
   CREATED = 'CREATED',
   LABEL_PRINTED = 'LABEL_PRINTED',
   PICKED_UP = 'PICKED_UP',
   IN_TRANSIT = 'IN_TRANSIT',
   HUB_TRANSFER = 'HUB_TRANSFER',
+  IN_WAREHOUSE = 'IN_WAREHOUSE',
   OUT_FOR_DELIVERY = 'OUT_FOR_DELIVERY',
   DELIVERED = 'DELIVERED',
   DELAYED = 'DELAYED',

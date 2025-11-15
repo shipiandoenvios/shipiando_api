@@ -5,18 +5,28 @@ import jwt from 'jsonwebtoken';
 export class JwtAuthGuard implements CanActivate {
   canActivate(context: ExecutionContext) {
     const req = context.switchToHttp().getRequest();
-    const auth = req.headers?.authorization;
-    if (!auth) {
-      throw new UnauthorizedException('No authorization header');
+    // Try Authorization header first, then fallback to cookie
+    let token: string | undefined;
+    const authHeader = req.headers?.authorization;
+    if (authHeader) {
+      const parts = authHeader.split(' ');
+      if (parts.length === 2 && parts[0] === 'Bearer') {
+        token = parts[1];
+      }
     }
-    const parts = auth.split(' ');
-    if (parts.length !== 2 || parts[0] !== 'Bearer') {
-      throw new UnauthorizedException('Invalid authorization format');
+
+    if (!token) {
+      const cookieName = process.env.AUTH_COOKIE_NAME || 'sopy-auth-token';
+      // req.cookies is available if cookie-parser middleware is used
+      token = req.cookies?.[cookieName];
     }
-    const token = parts[1];
+
+    if (!token) {
+      throw new UnauthorizedException('No authorization token');
+    }
     try {
-      const secret = process.env.JWT_SECRET || 'dev-jwt-secret';
-      const decoded = jwt.verify(token, secret) as any;
+  const secret = process.env.JWT_SECRET || 'dev-jwt-secret';
+  const decoded = jwt.verify(token, secret) as any;
       // expected decoded to contain id and roles
       req.user = decoded;
       return true;

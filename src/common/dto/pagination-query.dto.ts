@@ -21,6 +21,10 @@ export class PaginationQueryDto {
   @IsOptional()
   @IsIn(['asc', 'desc'])
   sortOrder?: 'asc' | 'desc' = 'asc';
+
+  @IsOptional()
+  @IsString()
+  search?: string;
 }
 import type { PaginatedResult as UnifiedPaginatedResult } from '../utils/pagination.util';
 export type PaginatedResult<T> = UnifiedPaginatedResult<T>;

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   CreatePackageDto,
@@ -9,8 +9,12 @@ import {
   PaginationQueryDto,
   PaginatedResult,
 } from 'src/common/dto/pagination-query.dto';
+import { PackageListQueryDto } from './dto/package-list-query.dto';
 import { buildPaginatedResult } from '../../common/utils/pagination.util';
 import { randomBytes } from 'crypto';
+import { NotificationService, NotificationChannel } from '../notification/notification.service';
+import { logPackageStatusChange } from './audit-log.util';
+import { isStatusTransitionAllowed } from './status-transition.util';
 import {
   TrackingEventType,
   PackageStatus as PrismaPackageStatus,
@@ -48,7 +52,10 @@ import {
 
 @Injectable()
 export class PackageService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   private shipmentInclude = {
     carrier: true,
@@ -90,7 +97,8 @@ export class PackageService {
       case 'AT_ORIGIN':
         return TrackingEventType.PICKED_UP;
       case 'IN_WAREHOUSE':
-        return TrackingEventType.HUB_TRANSFER;
+        // Evento intermedio: En centro de distribución
+        return TrackingEventType.EN_CENTRO_DISTRIBUCION;
       case 'IN_TRANSIT':
         return TrackingEventType.IN_TRANSIT;
       case 'OUT_FOR_DELIVERY':
@@ -287,21 +295,40 @@ export class PackageService {
   }
 
   async findAll(
-    params?: PaginationQueryDto,
+    params?: PackageListQueryDto,
   ): Promise<PaginatedResult<Package>> {
     const {
       page = 1,
       limit = 20,
       sortBy = 'createdAt',
       sortOrder = 'asc',
+      search,
+      status,
+      shipmentId,
+      currentWarehouseId,
+      tracking,
     } = params || {};
     const skip = (page - 1) * limit;
+    const where: any = {};
+    if (search) {
+      where.OR = [
+        { trackingCode: { contains: search, mode: 'insensitive' } },
+        { id: { contains: search, mode: 'insensitive' } },
+        { origin: { city: { contains: search, mode: 'insensitive' } } },
+        { destination: { city: { contains: search, mode: 'insensitive' } } },
+      ];
+    }
+    if (status) where.status = status;
+    if (shipmentId) where.shipmentId = shipmentId;
+    if (currentWarehouseId) where.currentWarehouseId = currentWarehouseId;
+    if (tracking) where.trackingCode = tracking;
     const [total, items] = await this.prisma.$transaction([
-      this.prisma.package.count(),
+      this.prisma.package.count({ where }),
       this.prisma.package.findMany({
         skip,
         take: limit,
         orderBy: { [sortBy]: sortOrder },
+        where,
       }),
     ]);
     return buildPaginatedResult(items, total, page, limit);
@@ -431,9 +458,23 @@ export class PackageService {
       longitude?: number;
       currentWarehouseId?: string;
     },
+    auditContext?: { userId?: string | null; ip?: string; userAgent?: string },
   ) {
-    const pkg = await this.findOne(id);
+    const pkg = await this.prisma.package.findUnique({
+      where: { id },
+      include: {
+        user: true,
+        client: true,
+      },
+    });
+    if (!pkg) throw new NotFoundException('Paquete no encontrado');
     const previousStatus = pkg.status;
+    // Validar transición de estado si aplica
+    if (data.status && data.status !== previousStatus) {
+      if (!isStatusTransitionAllowed(previousStatus, data.status)) {
+        throw new BadRequestException(`Transición de estado no permitida: ${previousStatus} → ${data.status}`);
+      }
+    }
     const updated = await this.prisma.package.update({
       where: { id },
       data: {
@@ -446,12 +487,84 @@ export class PackageService {
       },
     });
     if (data.status && data.status !== previousStatus) {
+      // --- AUDITORÍA ---
+      logPackageStatusChange({
+        timestamp: new Date().toISOString(),
+        userId: auditContext?.userId ?? null,
+        packageId: pkg.id,
+        previousStatus: previousStatus,
+        newStatus: data.status,
+        ip: auditContext?.ip,
+        userAgent: auditContext?.userAgent,
+      });
+
       await this.createTrackingEventForPackage({
         shipmentId: updated.shipmentId,
         status: data.status,
         latitude: updated.latitude ?? undefined,
         longitude: updated.longitude ?? undefined,
       });
+
+      // Notificación automática al usuario y vendedor
+      const statusLabel = data.status;
+      const subject = `Actualización de estado de tu paquete`;
+      const message = `El estado de tu paquete ha cambiado a: ${statusLabel}`;
+      // Notificar usuario (si tiene email/teléfono)
+      if (pkg.user) {
+        if (pkg.user.email) {
+          await this.notificationService.sendNotification({
+            to: pkg.user.email,
+            subject,
+            message,
+            channel: 'email',
+            meta: { packageId: pkg.id, status: data.status },
+          });
+        }
+        if (pkg.user.phone) {
+          await this.notificationService.sendNotification({
+            to: pkg.user.phone,
+            message,
+            channel: 'sms',
+            meta: { packageId: pkg.id, status: data.status },
+          });
+        }
+        if (pkg.user.pushToken) {
+          await this.notificationService.sendNotification({
+            to: pkg.user.pushToken,
+            message,
+            channel: 'push',
+            meta: { packageId: pkg.id, status: data.status },
+          });
+        }
+      }
+      // Notificar vendedor/cliente (si tiene email/teléfono)
+      if (pkg.client) {
+        if (pkg.client.email) {
+          await this.notificationService.sendNotification({
+            to: pkg.client.email,
+            subject,
+            message: `El estado de un paquete de tu cliente ha cambiado a: ${statusLabel}`,
+            channel: 'email',
+            meta: { packageId: pkg.id, status: data.status },
+          });
+        }
+        if (pkg.client.phone) {
+          await this.notificationService.sendNotification({
+            to: pkg.client.phone,
+            message: `El estado de un paquete de tu cliente ha cambiado a: ${statusLabel}`,
+            channel: 'sms',
+            meta: { packageId: pkg.id, status: data.status },
+          });
+        }
+        if (pkg.client.pushToken) {
+          await this.notificationService.sendNotification({
+            to: pkg.client.pushToken,
+            message: `El estado de un paquete de tu cliente ha cambiado a: ${statusLabel}`,
+            channel: 'push',
+            meta: { packageId: pkg.id, status: data.status },
+          });
+        }
+      }
     }
     return updated;
   }
@@ -466,6 +579,7 @@ export class PackageService {
       viewerType?: string;
     },
     user?: { id: string; roles?: string[] },
+    req?: { ip?: string; headers?: any },
   ) {
     // Validar que el usuario autenticado puede realizar escaneo/actualización
     const vt = (data.viewerType || '').toUpperCase();
@@ -488,7 +602,15 @@ export class PackageService {
       }
     }
 
-    const updated = await this.scanAndUpdate(id, data);
+    // Extraer IP y user-agent del request si está disponible
+    const ip = req?.ip || req?.headers?.['x-forwarded-for'] || req?.headers?.['x-real-ip'];
+    const userAgent = req?.headers?.['user-agent'];
+
+    const updated = await this.scanAndUpdate(id, data, {
+      userId: user.id,
+      ip: typeof ip === 'string' ? ip : Array.isArray(ip) ? ip[0] : undefined,
+      userAgent,
+    });
     let shipment:
       | (Shipment & {
           carrier?: Carrier | null;

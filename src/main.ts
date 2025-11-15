@@ -3,9 +3,17 @@ import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import cookieParser from 'cookie-parser';
+import { csrfMiddleware } from './common/middleware/csrf.middleware';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  // Parse cookies on incoming requests so guards/controllers can read req.cookies
+  app.use(cookieParser());
+  // Enable CORS with credentials so browser will send HttpOnly cookies
+  app.enableCors({ origin: process.env.CLIENT_ORIGIN || 'http://localhost:3000', credentials: true });
+  // CSRF double-submit middleware for mutating requests
+  app.use(csrfMiddleware);
   app.setGlobalPrefix('api');
   app.useGlobalPipes(
     new ValidationPipe({

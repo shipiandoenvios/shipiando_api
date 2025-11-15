@@ -7,6 +7,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import {
   AddressModule,
   CarrierModule,
+  AuthModule,
   ClientModule,
   InventoryModule,
   InvoiceModule,
@@ -35,6 +36,7 @@ import { TransformResponseInterceptor } from './common/interceptors/transform-re
     OrderModule,
     PackageModule,
     PrismaModule,
+  AuthModule,
     ProductCategoryModule,
     ProductModule,
     RoleModule,
