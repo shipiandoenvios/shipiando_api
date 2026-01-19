@@ -1,4 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  assertHasAnyRole,
+  AppUser,
+} from '../../common/permissions/permission.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateCarrierDto } from './dto/create-carrier.dto';
 import { UpdateCarrierDto } from './dto/update-carrier.dto';
@@ -13,7 +17,8 @@ import type { Carrier } from '@prisma/client';
 export class CarrierService {
   constructor(private readonly prisma: PrismaService) {}
 
-  create(data: CreateCarrierDto) {
+  create(data: CreateCarrierDto, user?: AppUser) {
+    if (user) assertHasAnyRole(user, ['ADMIN', 'CARRIER']);
     return this.prisma.carrier.create({
       data,
     });
@@ -46,7 +51,8 @@ export class CarrierService {
     return carrier;
   }
 
-  async update(id: string, data: UpdateCarrierDto) {
+  async update(id: string, data: UpdateCarrierDto, user?: AppUser) {
+    if (user) assertHasAnyRole(user, ['ADMIN', 'CARRIER']);
     await this.findOne(id);
     return this.prisma.carrier.update({
       where: { id },
@@ -54,7 +60,8 @@ export class CarrierService {
     });
   }
 
-  async remove(id: string) {
+  async remove(id: string, user?: AppUser) {
+    if (user) assertHasAnyRole(user, ['ADMIN', 'CARRIER']);
     await this.findOne(id);
     return this.prisma.carrier.delete({ where: { id } });
   }

@@ -1,4 +1,5 @@
 import { Roles } from '../../common/decorators/roles.decorator';
+import { RequestWithUser } from '../../common/permissions/permission.util';
 import {
   Body,
   Controller,
@@ -8,6 +9,7 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
@@ -29,39 +31,43 @@ export class InventoryController {
   @ApiOperation({ summary: 'Crear inventario' })
   @ApiSuccessMessage('Inventario creado correctamente')
   @Roles('ADMIN', 'WAREHOUSE', 'STORE')
-  create(@Body() dto: CreateInventoryDto) {
-    return this.inventoryService.create(dto);
+  create(@Body() dto: CreateInventoryDto, @Req() req?: RequestWithUser) {
+    return this.inventoryService.create(dto, req?.user);
   }
 
   @Get()
   @ApiOperation({ summary: 'Listar inventarios' })
   @ApiSuccessMessage('Listado de inventarios obtenido')
   @Roles('ADMIN', 'CLIENT', 'USER', 'WAREHOUSE', 'CARRIER', 'STORE')
-  findAll(@Query() query: PaginationQueryDto) {
-    return this.inventoryService.findAll(query);
+  findAll(@Query() query: PaginationQueryDto, @Req() req?: RequestWithUser) {
+    return this.inventoryService.findAll(query, req?.clientId);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Detalle inventario' })
   @ApiSuccessMessage('Inventario obtenido')
   @Roles('ADMIN', 'CLIENT', 'USER', 'WAREHOUSE', 'CARRIER', 'STORE')
-  findOne(@Param('id') id: string) {
-    return this.inventoryService.findOne(id);
+  findOne(@Param('id') id: string, @Req() req?: RequestWithUser) {
+    return this.inventoryService.findOne(id, req?.clientId);
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Actualizar inventario' })
   @ApiSuccessMessage('Inventario actualizado correctamente')
   @Roles('ADMIN', 'WAREHOUSE', 'STORE')
-  update(@Param('id') id: string, @Body() dto: UpdateInventoryDto) {
-    return this.inventoryService.update(id, dto);
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateInventoryDto,
+    @Req() req?: RequestWithUser,
+  ) {
+    return this.inventoryService.update(id, dto, req?.user);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Eliminar inventario' })
   @ApiSuccessMessage('Inventario eliminado correctamente')
   @Roles('ADMIN', 'WAREHOUSE', 'STORE')
-  remove(@Param('id') id: string) {
-    return this.inventoryService.remove(id);
+  remove(@Param('id') id: string, @Req() req?: RequestWithUser) {
+    return this.inventoryService.remove(id, req?.user);
   }
 }

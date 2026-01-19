@@ -6,20 +6,7 @@ import {
   IsNumber,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-
-export enum TrackingEventType {
-  CREATED = 'CREATED',
-  LABEL_PRINTED = 'LABEL_PRINTED',
-  PICKED_UP = 'PICKED_UP',
-  IN_TRANSIT = 'IN_TRANSIT',
-  HUB_TRANSFER = 'HUB_TRANSFER',
-  OUT_FOR_DELIVERY = 'OUT_FOR_DELIVERY',
-  DELIVERED = 'DELIVERED',
-  DELAYED = 'DELAYED',
-  EXCEPTION = 'EXCEPTION',
-  RETURN_INITIATED = 'RETURN_INITIATED',
-  RETURNED = 'RETURNED',
-}
+import { TrackingEventType } from '@prisma/client';
 
 export class CreateTrackingEventDto {
   @ApiProperty({ description: 'Código legible (ej: EVT-001)' })

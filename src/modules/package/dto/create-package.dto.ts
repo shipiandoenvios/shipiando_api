@@ -6,18 +6,7 @@ import {
   IsOptional,
   IsString,
 } from 'class-validator';
-
-export enum PackageStatus {
-  CREATED = 'CREATED',
-  AWAITING_CHECKIN = 'AWAITING_CHECKIN',
-  AT_ORIGIN = 'AT_ORIGIN',
-  IN_WAREHOUSE = 'IN_WAREHOUSE',
-  IN_TRANSIT = 'IN_TRANSIT',
-  OUT_FOR_DELIVERY = 'OUT_FOR_DELIVERY',
-  DELIVERED = 'DELIVERED',
-  RETURNED = 'RETURNED',
-  EXCEPTION = 'EXCEPTION',
-}
+import { PackageStatus } from '@prisma/client';
 
 export class CreatePackageDto {
   @ApiPropertyOptional()
@@ -89,4 +78,9 @@ export class CreatePackageDto {
   @IsOptional()
   @IsNumber()
   longitude?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  clientId?: string;
 }

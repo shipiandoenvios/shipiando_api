@@ -1,5 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import {
+  assertHasAnyRole,
+  AppUser,
+} from '../../common/permissions/permission.util';
+import {
   PaginationQueryDto,
   PaginatedResult,
 } from '../../common/dto/pagination-query.dto';
@@ -8,13 +12,27 @@ import type { Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
+import { logRoleChange } from '../../common/logging/audit.logger';
 
 @Injectable()
 export class RoleService {
   constructor(private readonly prisma: PrismaService) {}
 
-  create(data: CreateRoleDto) {
-    return this.prisma.role.create({ data });
+  async create(data: CreateRoleDto, user?: AppUser) {
+    if (user) assertHasAnyRole(user, ['ADMIN']);
+    const created = await this.prisma.role.create({ data });
+    try {
+      logRoleChange({
+        timestamp: new Date().toISOString(),
+        userId: user?.id ?? null,
+        roleId: created.id,
+        action: 'create',
+        after: created,
+      });
+    } catch (e) {
+      console.warn('Failed to write role audit log', e);
+    }
+    return created;
   }
 
   async findAll(params?: PaginationQueryDto): Promise<PaginatedResult<Role>> {
@@ -42,13 +60,40 @@ export class RoleService {
     return role;
   }
 
-  async update(id: string, data: UpdateRoleDto) {
-    await this.findOne(id);
-    return this.prisma.role.update({ where: { id }, data });
+  async update(id: string, data: UpdateRoleDto, user?: AppUser) {
+    if (user) assertHasAnyRole(user, ['ADMIN']);
+    const before = await this.findOne(id);
+    const updated = await this.prisma.role.update({ where: { id }, data });
+    try {
+      logRoleChange({
+        timestamp: new Date().toISOString(),
+        userId: user?.id ?? null,
+        roleId: id,
+        action: 'update',
+        before,
+        after: updated,
+      });
+    } catch (e) {
+      console.warn('Failed to write role audit log', e);
+    }
+    return updated;
   }
 
-  async remove(id: string) {
-    await this.findOne(id);
-    return this.prisma.role.delete({ where: { id } });
+  async remove(id: string, user?: AppUser) {
+    if (user) assertHasAnyRole(user, ['ADMIN']);
+    const before = await this.findOne(id);
+    const deleted = await this.prisma.role.delete({ where: { id } });
+    try {
+      logRoleChange({
+        timestamp: new Date().toISOString(),
+        userId: user?.id ?? null,
+        roleId: id,
+        action: 'delete',
+        before,
+      });
+    } catch (e) {
+      console.warn('Failed to write role audit log', e);
+    }
+    return deleted;
   }
 }

@@ -1,4 +1,5 @@
 import { Roles } from '../../common/decorators/roles.decorator';
+import { RequestWithUser } from '../../common/permissions/permission.util';
 import {
   Body,
   Controller,
@@ -8,6 +9,7 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
@@ -29,8 +31,8 @@ export class VehicleController {
   @ApiOperation({ summary: 'Crear vehículo' })
   @ApiSuccessMessage('Vehículo creado correctamente')
   @Roles('ADMIN', 'CARRIER', 'STORE')
-  create(@Body() dto: CreateVehicleDto) {
-    return this.vehicleService.create(dto);
+  create(@Body() dto: CreateVehicleDto, @Req() req?: RequestWithUser) {
+    return this.vehicleService.create(dto, req?.user);
   }
 
   @Get()
@@ -53,15 +55,19 @@ export class VehicleController {
   @ApiOperation({ summary: 'Actualizar vehículo' })
   @ApiSuccessMessage('Vehículo actualizado correctamente')
   @Roles('ADMIN', 'CARRIER', 'STORE')
-  update(@Param('id') id: string, @Body() dto: UpdateVehicleDto) {
-    return this.vehicleService.update(id, dto);
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateVehicleDto,
+    @Req() req?: RequestWithUser,
+  ) {
+    return this.vehicleService.update(id, dto, req?.user);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Eliminar vehículo' })
   @ApiSuccessMessage('Vehículo eliminado correctamente')
   @Roles('ADMIN', 'CARRIER', 'STORE')
-  remove(@Param('id') id: string) {
-    return this.vehicleService.remove(id);
+  remove(@Param('id') id: string, @Req() req?: RequestWithUser) {
+    return this.vehicleService.remove(id, req?.user);
   }
 }

@@ -3,6 +3,10 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CreateVehicleDto } from './dto/create-vehicle.dto';
 import { UpdateVehicleDto } from './dto/update-vehicle.dto';
 import {
+  assertHasAnyRole,
+  AppUser,
+} from '../../common/permissions/permission.util';
+import {
   PaginationQueryDto,
   PaginatedResult,
 } from '../../common/dto/pagination-query.dto';
@@ -13,7 +17,8 @@ import type { Vehicle } from '@prisma/client';
 export class VehicleService {
   constructor(private readonly prisma: PrismaService) {}
 
-  create(data: CreateVehicleDto) {
+  create(data: CreateVehicleDto, user?: AppUser) {
+    if (user) assertHasAnyRole(user, ['ADMIN', 'CARRIER', 'STORE']);
     return this.prisma.vehicle.create({ data });
   }
 
@@ -44,12 +49,14 @@ export class VehicleService {
     return vehicle;
   }
 
-  async update(id: string, data: UpdateVehicleDto) {
+  async update(id: string, data: UpdateVehicleDto, user?: AppUser) {
+    if (user) assertHasAnyRole(user, ['ADMIN', 'CARRIER', 'STORE']);
     await this.findOne(id);
     return this.prisma.vehicle.update({ where: { id }, data });
   }
 
-  async remove(id: string) {
+  async remove(id: string, user?: AppUser) {
+    if (user) assertHasAnyRole(user, ['ADMIN', 'CARRIER', 'STORE']);
     await this.findOne(id);
     return this.prisma.vehicle.delete({ where: { id } });
   }

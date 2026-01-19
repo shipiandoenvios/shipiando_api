@@ -1,4 +1,5 @@
 import { Roles } from '../../common/decorators/roles.decorator';
+import { RequestWithUser } from '../../common/permissions/permission.util';
 import {
   Body,
   Controller,
@@ -8,6 +9,7 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
@@ -29,8 +31,8 @@ export class RoleController {
   @ApiOperation({ summary: 'Crear rol' })
   @ApiSuccessMessage('Rol creado correctamente')
   @Roles('ADMIN')
-  create(@Body() dto: CreateRoleDto) {
-    return this.roleService.create(dto);
+  create(@Body() dto: CreateRoleDto, @Req() req?: RequestWithUser) {
+    return this.roleService.create(dto, req?.user);
   }
 
   @Get()
@@ -53,15 +55,19 @@ export class RoleController {
   @ApiOperation({ summary: 'Actualizar rol' })
   @ApiSuccessMessage('Rol actualizado correctamente')
   @Roles('ADMIN')
-  update(@Param('id') id: string, @Body() dto: UpdateRoleDto) {
-    return this.roleService.update(id, dto);
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateRoleDto,
+    @Req() req?: RequestWithUser,
+  ) {
+    return this.roleService.update(id, dto, req?.user);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Eliminar rol' })
   @ApiSuccessMessage('Rol eliminado correctamente')
   @Roles('ADMIN')
-  remove(@Param('id') id: string) {
-    return this.roleService.remove(id);
+  remove(@Param('id') id: string, @Req() req?: RequestWithUser) {
+    return this.roleService.remove(id, req?.user);
   }
 }

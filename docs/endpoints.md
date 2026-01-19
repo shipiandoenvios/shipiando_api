@@ -66,13 +66,63 @@ Ruta base: `/api` (añadir prefijo en el cliente si aplica)
 - PATCH /api/product-category/:id — UpdateProductCategoryDto
 - DELETE /api/product-category/:id
 
+
 ## package
 - POST /api/package — CreatePackageDto
 - GET  /api/package — PaginationQueryDto
 - GET  /api/package/tracking/:trackingCode — (trackingCode, optional query viewerType)
 - GET  /api/package/:id — (id)
 - GET  /api/package/:id/context — (id, optional query viewerType)
+  
+	Example request (POST /api/package):
+	```json
+	{
+		"orderId": "ORD-001",
+		"trackingCode": "PKG-001",
+		"weightKg": 2.5,
+		"heightCm": 10,
+		"lengthCm": 20,
+		"widthCm": 15,
+		"originId": "addr-1",
+		"destinationId": "addr-2",
+		"status": "CREATED"
+	}
+	```
+
+	Example response (POST /api/package):
+	```json
+	{
+		"id": "pkg-id",
+		"trackingCode": "PKG-001",
+		"status": "CREATED",
+		"weightKg": 2.5,
+		"createdAt": "2025-11-01T10:00:00.000Z"
+	}
+	```
+
+	Example request (PATCH /api/package/:id/scan):
+	```json
+	{
+		"status": "IN_TRANSIT",
+		"latitude": -34.6037,
+		"longitude": -58.3816,
+		"currentWarehouseId": "war-1",
+		"viewerType": "WAREHOUSE"
+	}
+	```
+
+	Example response (PATCH /api/package/:id/scan):
+	```json
+	{
+		"id": "pkg-id",
+		"status": "IN_TRANSIT",
+		"lastScanAt": "2025-11-05T12:00:00.000Z"
+	}
+	```
 - PATCH /api/package/:id — UpdatePackageDto
+	- Usar para actualizar estado del paquete, incluyendo cancelación (`status: 'CANCELLED'`).
+	- Solo el creador puede cancelar si el paquete no ha salido de la warehouse de origen.
+	- Requiere autenticación y roles válidos (ADMIN, WAREHOUSE, CARRIER, STORE; para cancelar, solo el creador y bajo condiciones de negocio).
 - PATCH /api/package/:id/scan — ScanPackageDto (+ viewerType) (body: status?, latitude?, longitude?, currentWarehouseId?, viewerType?)
 - DELETE /api/package/:id
 

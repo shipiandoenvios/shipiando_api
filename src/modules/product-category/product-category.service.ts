@@ -1,4 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  assertHasAnyRole,
+  AppUser,
+} from '../../common/permissions/permission.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateProductCategoryDto } from './dto/create-product-category.dto';
 import { UpdateProductCategoryDto } from './dto/update-product-category.dto';
@@ -13,7 +17,8 @@ import type { ProductCategory } from '@prisma/client';
 export class ProductCategoryService {
   constructor(private readonly prisma: PrismaService) {}
 
-  create(data: CreateProductCategoryDto) {
+  create(data: CreateProductCategoryDto, user?: AppUser) {
+    if (user) assertHasAnyRole(user, ['ADMIN', 'STORE']);
     return this.prisma.productCategory.create({ data });
   }
 
@@ -46,12 +51,14 @@ export class ProductCategoryService {
     return category;
   }
 
-  async update(id: string, data: UpdateProductCategoryDto) {
+  async update(id: string, data: UpdateProductCategoryDto, user?: AppUser) {
+    if (user) assertHasAnyRole(user, ['ADMIN', 'STORE']);
     await this.findOne(id);
     return this.prisma.productCategory.update({ where: { id }, data });
   }
 
-  async remove(id: string) {
+  async remove(id: string, user?: AppUser) {
+    if (user) assertHasAnyRole(user, ['ADMIN', 'STORE']);
     await this.findOne(id);
     return this.prisma.productCategory.delete({ where: { id } });
   }

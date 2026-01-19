@@ -1,3 +1,4 @@
+import { RequestWithUser } from '../../common/permissions/permission.util';
 import {
   Body,
   Controller,
@@ -7,6 +8,7 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { TrackingEventService } from './tracking-event.service';
@@ -29,39 +31,43 @@ export class TrackingEventController {
   @ApiOperation({ summary: 'Crear evento de tracking' })
   @ApiSuccessMessage('Evento de tracking creado correctamente')
   @Roles('ADMIN', 'WAREHOUSE', 'CARRIER')
-  create(@Body() dto: CreateTrackingEventDto) {
-    return this.trackingEventService.create(dto);
+  create(@Body() dto: CreateTrackingEventDto, @Req() req?: RequestWithUser) {
+    return this.trackingEventService.create(dto, req?.user);
   }
 
   @Get()
   @ApiOperation({ summary: 'Listar eventos de tracking' })
   @ApiSuccessMessage('Listado de eventos de tracking obtenido')
   @Roles('ADMIN', 'WAREHOUSE', 'CARRIER', 'CLIENT', 'USER', 'STORE')
-  findAll(@Query() query: PaginationQueryDto) {
-    return this.trackingEventService.findAll(query);
+  findAll(@Query() query: PaginationQueryDto, @Req() req?: RequestWithUser) {
+    return this.trackingEventService.findAll(query, req?.clientId);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Detalle evento de tracking' })
   @ApiSuccessMessage('Evento de tracking obtenido')
   @Roles('ADMIN', 'WAREHOUSE', 'CARRIER', 'CLIENT', 'USER', 'STORE')
-  findOne(@Param('id') id: string) {
-    return this.trackingEventService.findOne(id);
+  findOne(@Param('id') id: string, @Req() req?: RequestWithUser) {
+    return this.trackingEventService.findOne(id, req?.clientId);
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Actualizar evento de tracking' })
   @ApiSuccessMessage('Evento de tracking actualizado correctamente')
   @Roles('ADMIN', 'WAREHOUSE', 'CARRIER')
-  update(@Param('id') id: string, @Body() dto: UpdateTrackingEventDto) {
-    return this.trackingEventService.update(id, dto);
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateTrackingEventDto,
+    @Req() req?: RequestWithUser,
+  ) {
+    return this.trackingEventService.update(id, dto, req?.user);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Eliminar evento de tracking' })
   @ApiSuccessMessage('Evento de tracking eliminado correctamente')
   @Roles('ADMIN', 'WAREHOUSE', 'CARRIER')
-  remove(@Param('id') id: string) {
-    return this.trackingEventService.remove(id);
+  remove(@Param('id') id: string, @Req() req?: RequestWithUser) {
+    return this.trackingEventService.remove(id, req?.user);
   }
 }

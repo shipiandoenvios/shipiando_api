@@ -1,7 +1,19 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import {
+  assertHasAnyRole,
+  AppUser,
+  assertClientMatches,
+} from '../../common/permissions/permission.util';
+import { assertHasPermission } from '../../common/permissions/abac.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { NotificationService } from '../notification/notification.service';
 import { CreateShipmentDto } from './dto/create-shipment.dto';
 import { UpdateShipmentDto } from './dto/update-shipment.dto';
+import { Prisma } from '@prisma/client';
 import {
   PaginationQueryDto,
   PaginatedResult,
@@ -13,15 +25,22 @@ import {
   ShipmentStatus,
 } from '@prisma/client';
 import type { Shipment } from '@prisma/client';
+import { logPolicyDenial } from 'src/common/logging/audit.logger';
 
 @Injectable()
 export class ShipmentService {
-  constructor(private readonly prisma: PrismaService) {}
-  create(data: CreateShipmentDto) {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationService: NotificationService,
+  ) {}
+  create(data: CreateShipmentDto, user?: AppUser) {
+    if (user)
+      assertHasAnyRole(user, ['ADMIN', 'WAREHOUSE', 'CARRIER', 'STORE']);
     return this.prisma.shipment.create({ data });
   }
   async findAll(
     params?: PaginationQueryDto,
+    clientId?: string,
   ): Promise<PaginatedResult<Shipment>> {
     const {
       page = 1,
@@ -30,20 +49,33 @@ export class ShipmentService {
       sortOrder = 'asc',
     } = params || {};
     const skip = (page - 1) * limit;
+    const where: Prisma.ShipmentWhereInput = {};
+    if (clientId) where.packages = { some: { order: { clientId } } };
     const [total, items] = await this.prisma.$transaction([
-      this.prisma.shipment.count(),
+      this.prisma.shipment.count({ where }),
       this.prisma.shipment.findMany({
         skip,
         take: limit,
         orderBy: { [sortBy]: sortOrder },
+        where,
       }),
     ]);
     return buildPaginatedResult(items, total, page, limit);
   }
 
-  async findOne(id: string) {
-    const shipment = await this.prisma.shipment.findUnique({ where: { id } });
+  async findOne(id: string, clientId?: string) {
+    const shipment = await this.prisma.shipment.findUnique({
+      where: { id },
+      include: { packages: { include: { order: true } } },
+    });
     if (!shipment) throw new NotFoundException('Shipment not found');
+    if (clientId) {
+      const matches = (shipment.packages || []).some(
+        (p) => p.order?.clientId === clientId,
+      );
+      if (!matches)
+        throw new ForbiddenException('No autorizado para ver este recurso');
+    }
     return shipment;
   }
 
@@ -116,14 +148,70 @@ export class ShipmentService {
             },
           });
         } catch {
-          void 0;
+          // non-fatal: tracking event creation
         }
       }
     }
   }
 
-  async update(id: string, data: UpdateShipmentDto) {
-    await this.findOne(id);
+  async update(
+    id: string,
+    data: UpdateShipmentDto,
+    user?: AppUser,
+    clientId?: string,
+  ) {
+    if (user)
+      assertHasAnyRole(user, ['ADMIN', 'WAREHOUSE', 'CARRIER', 'STORE']);
+    await this.findOne(id, clientId);
+
+    // tenant scoping
+    if (user) assertClientMatches(user, clientId);
+
+    // ABAC check
+    try {
+      if (user)
+        assertHasPermission(user, 'shipment.update', 'shipment', {
+          id,
+          clientId,
+        });
+    } catch (e) {
+      try {
+        logPolicyDenial({
+          timestamp: new Date().toISOString(),
+          userId: user?.id ?? null,
+          action: 'shipment.update',
+          resource: 'shipment',
+          attrs: { id, clientId },
+          reason: String(e),
+          clientId,
+        });
+      } catch {
+        // non-fatal: audit logging
+      }
+      try {
+        const admins = (process.env.ADMIN_NOTIFICATION_EMAILS || '')
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
+        for (const a of admins) {
+          await this.notificationService.sendNotification({
+            to: a,
+            subject: `Policy denial: shipment.update by ${user?.id ?? 'unknown'}`,
+            message: `User ${user?.id ?? 'unknown'} was denied shipment.update on shipment ${id}. Reason: ${String(e)}. attrs=${JSON.stringify({ id, clientId })}`,
+            channel: 'email',
+            meta: {
+              action: 'shipment.update',
+              shipmentId: id,
+              userId: user?.id ?? null,
+            },
+          });
+        }
+      } catch {
+        // non-fatal: notification
+      }
+      throw e;
+    }
+
     const updated = await this.prisma.shipment.update({
       where: { id },
       data,
@@ -134,8 +222,9 @@ export class ShipmentService {
     return updated;
   }
 
-  async remove(id: string) {
-    await this.findOne(id);
+  async remove(id: string, user?: AppUser, clientId?: string) {
+    if (user) assertHasAnyRole(user, ['ADMIN']);
+    await this.findOne(id, clientId);
     return this.prisma.shipment.delete({ where: { id } });
   }
 
@@ -151,8 +240,12 @@ export class ShipmentService {
       latitude?: number;
       longitude?: number;
     },
+    user?: AppUser,
+    clientId?: string,
   ) {
-    const shipment = await this.findOne(shipmentId);
+    if (user) assertHasAnyRole(user, ['ADMIN', 'WAREHOUSE', 'CARRIER']);
+
+    const shipment = await this.findOne(shipmentId, clientId);
     const packages = await this.prisma.package.findMany({
       where: { shipmentId: shipment.id },
     });
@@ -207,7 +300,7 @@ export class ShipmentService {
             },
           });
         } catch {
-          void 0;
+          /* empty */
         }
       }
     }
