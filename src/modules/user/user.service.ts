@@ -1,4 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  assertHasAnyRole,
+  AppUser,
+} from '../../common/permissions/permission.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -8,12 +12,18 @@ import {
 } from '../../common/dto/pagination-query.dto';
 import { buildPaginatedResult } from '../../common/utils/pagination.util';
 import type { User } from '@prisma/client';
+import { validatePasswordPolicy } from '../../common/security/password.util';
 
 @Injectable()
 export class UserService {
   constructor(private readonly prisma: PrismaService) {}
 
-  create(data: CreateUserDto) {
+  create(data: CreateUserDto, user?: AppUser) {
+    if (user) assertHasAnyRole(user, ['ADMIN']);
+    // Validate password strength if provided (note: field is named passwordHash for legacy reasons)
+    if (data.passwordHash) {
+      validatePasswordPolicy(data.passwordHash);
+    }
     return this.prisma.user.create({ data });
   }
 
@@ -41,12 +51,17 @@ export class UserService {
     return user;
   }
 
-  async update(id: string, data: UpdateUserDto) {
+  async update(id: string, data: UpdateUserDto, user?: AppUser) {
+    if (user) assertHasAnyRole(user, ['ADMIN']);
     await this.findOne(id);
+    if (data.passwordHash) {
+      validatePasswordPolicy(data.passwordHash);
+    }
     return this.prisma.user.update({ where: { id }, data });
   }
 
-  async remove(id: string) {
+  async remove(id: string, user?: AppUser) {
+    if (user) assertHasAnyRole(user, ['ADMIN']);
     await this.findOne(id);
     return this.prisma.user.delete({ where: { id } });
   }

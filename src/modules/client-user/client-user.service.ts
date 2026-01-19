@@ -1,4 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  assertHasAnyRole,
+  AppUser,
+  assertClientMatches,
+} from '../../common/permissions/permission.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateClientUserDto } from './dto/create-client-user.dto';
 import { UpdateClientUserDto } from './dto/update-client-user.dto';
@@ -13,7 +18,12 @@ import type { ClientUser } from '@prisma/client';
 export class ClientUserService {
   constructor(private readonly prisma: PrismaService) {}
 
-  create(data: CreateClientUserDto) {
+  create(data: CreateClientUserDto, user?: AppUser) {
+    if (user) assertHasAnyRole(user, ['ADMIN', 'CLIENT', 'STORE']);
+    if (user) assertClientMatches(user, data.clientId);
+    if (user?.roles?.includes('CLIENT') && 'clientId' in user) {
+      data.clientId = user.clientId as string;
+    }
     return this.prisma.clientUser.create({ data });
   }
 
@@ -63,7 +73,8 @@ export class ClientUserService {
     return buildPaginatedResult(items, total, page, limit);
   }
 
-  async update(id: string, data: UpdateClientUserDto) {
+  async update(id: string, data: UpdateClientUserDto, user?: AppUser) {
+    if (user) assertHasAnyRole(user, ['ADMIN', 'CLIENT']);
     const existing = await this.prisma.clientUser.findUnique({ where: { id } });
     if (!existing) {
       throw new NotFoundException('ClientUser not found');
@@ -71,7 +82,8 @@ export class ClientUserService {
     return this.prisma.clientUser.update({ where: { id }, data });
   }
 
-  async remove(id: string) {
+  async remove(id: string, user?: AppUser) {
+    if (user) assertHasAnyRole(user, ['ADMIN', 'CLIENT']);
     const existing = await this.prisma.clientUser.findUnique({ where: { id } });
     if (!existing) {
       throw new NotFoundException('ClientUser not found');

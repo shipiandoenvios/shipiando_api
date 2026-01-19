@@ -1,11 +1,11 @@
 import { IsOptional, IsString, IsEnum } from 'class-validator';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
-import { PackageStatus } from './create-package.dto';
+import { PackageStatus } from '@prisma/client';
 
 export class PackageListQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsString()
-  search?: string;
+  declare search?: string;
 
   @IsOptional()
   @IsEnum(PackageStatus)

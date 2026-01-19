@@ -1,30 +1,113 @@
-import { Body, Controller, Post, Res, HttpCode } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Post,
+  Res,
+  HttpCode,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { Response } from 'express';
 import { randomBytes } from 'crypto';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
+import { twoFactorService } from '../../common/security/twofactor.service';
+import { loginAttemptsService } from '../../common/security/login-attempts.service';
 
-@Controller('api/auth')
+@Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  @Post('2fa/verify')
+  async verify2fa(
+    @Body() body: { email: string; code: string },
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { email, code } = body;
+    const user = await this.authService.validateUser(email, '');
+    if (!user) throw new UnauthorizedException('Invalid credentials');
+    const verified = twoFactorService.verifyCode(user.id, code);
+    if (!verified) throw new UnauthorizedException('Invalid 2FA code');
+    const { accessToken, refreshToken } = await this.authService.login(user);
+    const secure = process.env.NODE_ENV === 'production';
+    const accessMaxAge =
+      Number(process.env.AUTH_ACCESS_TOKEN_MAX_AGE_MS) || 15 * 60 * 1000;
+    const refreshMaxAge =
+      Number(process.env.AUTH_REFRESH_TOKEN_MAX_AGE_MS) ||
+      7 * 24 * 60 * 60 * 1000;
+    const accessCookieName = process.env.AUTH_COOKIE_NAME || 'sopy-auth-token';
+    res.cookie(accessCookieName, accessToken, {
+      httpOnly: true,
+      secure,
+      sameSite:
+        (process.env.COOKIE_SAMESITE as 'lax' | 'strict' | 'none') || 'lax',
+      maxAge: accessMaxAge,
+      path: '/',
+    });
+    const refreshCookieNameEnv =
+      process.env.AUTH_REFRESH_COOKIE_NAME || 'sopy-refresh-token';
+    res.cookie(refreshCookieNameEnv, refreshToken, {
+      httpOnly: true,
+      secure,
+      sameSite:
+        (process.env.COOKIE_SAMESITE as 'lax' | 'strict' | 'none') || 'lax',
+      maxAge: refreshMaxAge,
+      path: '/',
+    });
+    return { success: true };
+  }
+
   @Post('login')
   @HttpCode(200)
-  async login(@Body() body: LoginDto, @Res({ passthrough: true }) res: Response) {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
+  @Throttle({ limit: 5, ttl: 60 } as unknown as any)
+  async login(
+    @Body() body: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const { email, password } = body;
+
+    const lockedInfo = loginAttemptsService?.isLocked(email) ?? {
+      locked: false,
+    };
+    if (lockedInfo.locked) {
+      throw new UnauthorizedException('Account locked. Try again later');
+    }
+
     const user = await this.authService.validateUser(email, password);
     if (!user) {
-      return { success: false, message: 'Invalid credentials' };
+      try {
+        loginAttemptsService.recordFailure(email);
+      } catch {
+        /* non-fatal */
+      }
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    try {
+      loginAttemptsService.reset(email);
+    } catch {
+      // ignore cookie errors
+    }
+
+    if (twoFactorService.isEnabled(user.id)) {
+      twoFactorService.generateCode(user.id);
+      return {
+        success: true,
+        nextStep: 'verify_2fa',
+        message: '2FA code sent',
+      };
     }
 
     const { accessToken, refreshToken } = await this.authService.login(user);
 
-    // Cookie options
     const secure = process.env.NODE_ENV === 'production';
-    const accessMaxAge = Number(process.env.AUTH_ACCESS_TOKEN_MAX_AGE_MS) || 15 * 60 * 1000; // 15 minutes
-    const refreshMaxAge = Number(process.env.AUTH_REFRESH_TOKEN_MAX_AGE_MS) || 7 * 24 * 60 * 60 * 1000; // 7 days
+    const accessMaxAge =
+      Number(process.env.AUTH_ACCESS_TOKEN_MAX_AGE_MS) || 15 * 60 * 1000;
+    const refreshMaxAge =
+      Number(process.env.AUTH_REFRESH_TOKEN_MAX_AGE_MS) ||
+      7 * 24 * 60 * 60 * 1000;
 
-    // Set access token cookie (HttpOnly)
     const accessCookieName = process.env.AUTH_COOKIE_NAME || 'sopy-auth-token';
     res.cookie(accessCookieName, accessToken, {
       httpOnly: true,
@@ -34,8 +117,8 @@ export class AuthController {
       path: '/',
     });
 
-    // Set refresh token cookie (HttpOnly)
-    const refreshCookieName = process.env.AUTH_REFRESH_COOKIE_NAME || 'sopy-refresh-token';
+    const refreshCookieName =
+      process.env.AUTH_REFRESH_COOKIE_NAME || 'sopy-refresh-token';
     res.cookie(refreshCookieName, refreshToken, {
       httpOnly: true,
       secure,
@@ -44,7 +127,6 @@ export class AuthController {
       path: '/',
     });
 
-    // Set CSRF double-submit cookie (readable by client JS)
     const csrfCookieName = process.env.AUTH_CSRF_COOKIE_NAME || 'sopy-csrf';
     const csrfToken = randomBytes(48).toString('hex');
     res.cookie(csrfCookieName, csrfToken, {
@@ -55,51 +137,82 @@ export class AuthController {
       path: '/',
     });
 
-    // Return minimal payload
     return { success: true, user };
   }
 
   @Post('logout')
-  async logout(@Res({ passthrough: true }) res: Response) {
-  const cookieName = process.env.AUTH_COOKIE_NAME || 'sopy-auth-token';
-  const refreshCookieName = process.env.AUTH_REFRESH_COOKIE_NAME || 'sopy-refresh-token';
-  const csrfCookieName = process.env.AUTH_CSRF_COOKIE_NAME || 'sopy-csrf';
-  // Clear cookies
-  res.clearCookie(cookieName, { path: '/' });
-  res.clearCookie(refreshCookieName, { path: '/' });
-  res.clearCookie(csrfCookieName, { path: '/' });
+  logout(@Res({ passthrough: true }) res: Response) {
+    const cookieName = process.env.AUTH_COOKIE_NAME || 'sopy-auth-token';
+    const refreshCookieName =
+      process.env.AUTH_REFRESH_COOKIE_NAME || 'sopy-refresh-token';
+    const csrfCookieName = process.env.AUTH_CSRF_COOKIE_NAME || 'sopy-csrf';
+    res.clearCookie(cookieName, { path: '/' });
+    res.clearCookie(refreshCookieName, { path: '/' });
+    res.clearCookie(csrfCookieName, { path: '/' });
     return { success: true };
   }
 
   @Post('refresh')
   @HttpCode(200)
   async refresh(@Res({ passthrough: true }) res: Response) {
-    const refreshCookieName = process.env.AUTH_REFRESH_COOKIE_NAME || 'sopy-refresh-token';
-    const refreshToken = (res.req as any)?.cookies?.[refreshCookieName];
+    const refreshCookieName =
+      process.env.AUTH_REFRESH_COOKIE_NAME || 'sopy-refresh-token';
+    const cookies =
+      (res.req as { cookies?: Record<string, string> }).cookies ?? {};
+    const refreshToken = cookies[refreshCookieName];
     if (!refreshToken) {
       return { success: false, message: 'No refresh token' };
     }
 
     try {
-      const { accessToken, refreshToken: newRefreshToken, user } = await this.authService.refreshTokens(refreshToken);
+      const {
+        accessToken,
+        refreshToken: newRefreshToken,
+        user,
+      } = await this.authService.refreshTokens(refreshToken);
 
       const secure = process.env.NODE_ENV === 'production';
-      const accessMaxAge = Number(process.env.AUTH_ACCESS_TOKEN_MAX_AGE_MS) || 15 * 60 * 1000;
-      const refreshMaxAge = Number(process.env.AUTH_REFRESH_TOKEN_MAX_AGE_MS) || 7 * 24 * 60 * 60 * 1000;
+      const accessMaxAge =
+        Number(process.env.AUTH_ACCESS_TOKEN_MAX_AGE_MS) || 15 * 60 * 1000;
+      const refreshMaxAge =
+        Number(process.env.AUTH_REFRESH_TOKEN_MAX_AGE_MS) ||
+        7 * 24 * 60 * 60 * 1000;
 
-      const accessCookieName = process.env.AUTH_COOKIE_NAME || 'sopy-auth-token';
-      res.cookie(accessCookieName, accessToken, { httpOnly: true, secure, sameSite: 'lax', maxAge: accessMaxAge, path: '/' });
+      const accessCookieName =
+        process.env.AUTH_COOKIE_NAME || 'sopy-auth-token';
+      res.cookie(accessCookieName, accessToken, {
+        httpOnly: true,
+        secure,
+        sameSite:
+          (process.env.COOKIE_SAMESITE as 'lax' | 'strict' | 'none') || 'lax',
+        maxAge: accessMaxAge,
+        path: '/',
+      });
 
-      const refreshCookieNameEnv = process.env.AUTH_REFRESH_COOKIE_NAME || 'sopy-refresh-token';
-      res.cookie(refreshCookieNameEnv, newRefreshToken, { httpOnly: true, secure, sameSite: 'lax', maxAge: refreshMaxAge, path: '/' });
+      const refreshCookieNameEnv =
+        process.env.AUTH_REFRESH_COOKIE_NAME || 'sopy-refresh-token';
+      res.cookie(refreshCookieNameEnv, newRefreshToken, {
+        httpOnly: true,
+        secure,
+        sameSite:
+          (process.env.COOKIE_SAMESITE as 'lax' | 'strict' | 'none') || 'lax',
+        maxAge: refreshMaxAge,
+        path: '/',
+      });
 
-      // Rotate CSRF token as well
       const csrfCookieName = process.env.AUTH_CSRF_COOKIE_NAME || 'sopy-csrf';
       const csrfToken = randomBytes(48).toString('hex');
-      res.cookie(csrfCookieName, csrfToken, { httpOnly: false, secure, sameSite: 'lax', maxAge: refreshMaxAge, path: '/' });
+      res.cookie(csrfCookieName, csrfToken, {
+        httpOnly: false,
+        secure,
+        sameSite:
+          (process.env.COOKIE_SAMESITE as 'lax' | 'strict' | 'none') || 'lax',
+        maxAge: refreshMaxAge,
+        path: '/',
+      });
 
       return { success: true, user };
-    } catch (err) {
+    } catch {
       return { success: false, message: 'Invalid refresh token' };
     }
   }

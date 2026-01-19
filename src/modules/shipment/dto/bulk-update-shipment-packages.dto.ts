@@ -1,6 +1,6 @@
 import { IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { PackageStatus } from '../../package/dto/create-package.dto';
+import { PackageStatus } from '@prisma/client';
 
 export class BulkUpdateShipmentPackagesDto {
   @ApiPropertyOptional({ enum: PackageStatus })

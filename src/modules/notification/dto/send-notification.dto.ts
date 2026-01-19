@@ -18,5 +18,5 @@ export class SendNotificationDto {
   channel: NotificationChannel;
 
   @IsOptional()
-  meta?: Record<string, any>;
+  meta?: Record<string, unknown>;
 }

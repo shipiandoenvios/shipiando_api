@@ -15,3 +15,4 @@ export { ProductCategoryModule } from './product-category/product-category.modul
 export { InventoryModule } from './inventory/inventory.module';
 export { ClientUserModule } from './client-user/client-user.module';
 export { AuthModule } from './auth/auth.module';
+export { PermissionsModule } from './permissions/permissions.module';

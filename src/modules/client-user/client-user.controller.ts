@@ -1,3 +1,4 @@
+import { RequestWithUser } from '../../common/permissions/permission.util';
 import {
   Body,
   Controller,
@@ -7,8 +8,12 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UseGuards,
+  ForbiddenException,
 } from '@nestjs/common';
+import { Request } from 'express';
+import { AppUser } from '../../common/permissions/permission.util';
 import {
   ApiTags,
   ApiOperation,
@@ -34,8 +39,9 @@ export class ClientUserController {
   @ApiOperation({ summary: 'Vincular usuario a cliente' })
   @ApiSuccessMessage('Vínculo creado correctamente')
   @Roles('ADMIN', 'CLIENT', 'STORE')
-  create(@Body() dto: CreateClientUserDto) {
-    return this.clientUserService.create(dto);
+  create(@Body() dto: CreateClientUserDto, @Req() req?: RequestWithUser) {
+    const user = req?.user;
+    return this.clientUserService.create(dto, user);
   }
 
   @Get('by-client/:clientId')
@@ -50,7 +56,18 @@ export class ClientUserController {
   findByClient(
     @Param('clientId') clientId: string,
     @Query() query: PaginationQueryDto,
+    @Req() req?: Request & { user?: AppUser },
   ) {
+    const user = req?.user;
+    const clientIdFromUser =
+      user && 'clientId' in user ? user.clientId : undefined;
+    if (
+      clientIdFromUser &&
+      user?.roles?.includes('CLIENT') &&
+      clientIdFromUser !== clientId
+    ) {
+      throw new ForbiddenException('No autorizado para ver este recurso');
+    }
     return this.clientUserService.findByClient(clientId, query);
   }
 
@@ -74,15 +91,21 @@ export class ClientUserController {
   @ApiOperation({ summary: 'Actualizar rol o desvincular usuario de cliente' })
   @ApiSuccessMessage('Vínculo actualizado correctamente')
   @Roles('ADMIN', 'CLIENT', 'STORE')
-  update(@Param('id') id: string, @Body() dto: UpdateClientUserDto) {
-    return this.clientUserService.update(id, dto);
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateClientUserDto,
+    @Req() req?: Request & { user?: AppUser },
+  ) {
+    const user = req?.user;
+    return this.clientUserService.update(id, dto, user);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Eliminar vínculo usuario-cliente' })
   @ApiSuccessMessage('Vínculo eliminado correctamente')
   @Roles('ADMIN', 'CLIENT', 'STORE')
-  remove(@Param('id') id: string) {
-    return this.clientUserService.remove(id);
+  remove(@Param('id') id: string, @Req() req?: RequestWithUser) {
+    const user = req?.user;
+    return this.clientUserService.remove(id, user);
   }
 }

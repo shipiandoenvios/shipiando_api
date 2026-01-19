@@ -3,17 +3,29 @@ import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
-import cookieParser from 'cookie-parser';
+import cookieParser = require('cookie-parser');
 import { csrfMiddleware } from './common/middleware/csrf.middleware';
+import { AppLogger } from './common/logging/logger';
+import { IdempotencyInterceptor } from './common/idempotency/idempotency.interceptor';
+import * as express from 'express';
+import tenantMiddleware from './common/middleware/tenant.middleware';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  // Parse cookies on incoming requests so guards/controllers can read req.cookies
-  app.use(cookieParser());
-  // Enable CORS with credentials so browser will send HttpOnly cookies
-  app.enableCors({ origin: process.env.CLIENT_ORIGIN || 'http://localhost:3000', credentials: true });
-  // CSRF double-submit middleware for mutating requests
+  const cookieParserMiddleware = cookieParser();
+  app.use(cookieParserMiddleware);
+  app.enableCors({
+    origin: process.env.CLIENT_ORIGIN || 'http://localhost:3000',
+    credentials: true,
+  });
   app.use(csrfMiddleware);
+  app.use(tenantMiddleware);
+
+  app.use(
+    '/api/webhook/:carrier',
+    express.raw({ type: '*/*', limit: '512kb' }),
+  );
+
   app.setGlobalPrefix('api');
   app.useGlobalPipes(
     new ValidationPipe({
@@ -24,7 +36,6 @@ async function bootstrap() {
     }),
   );
   app.useGlobalFilters(new HttpExceptionFilter());
-  app.enableCors();
 
   const config = new DocumentBuilder()
     .setTitle('Shipiando API')
@@ -52,6 +63,15 @@ async function bootstrap() {
   SwaggerModule.setup('docs', app, document, {
     swaggerOptions: { persistAuthorization: true },
   });
+
+  const expressApp = (app.getHttpAdapter as any)().getInstance?.() || (app as any).getHttpServer?.();
+  if (expressApp && expressApp.get) {
+    expressApp.get('/api-json', (_req: any, res: any) => res.json(document));
+    expressApp.get('/api/api-json', (_req: any, res: any) => res.json(document));
+  }
+
+  app.useLogger(new AppLogger());
+  app.useGlobalInterceptors(new IdempotencyInterceptor());
 
   await app.listen(process.env.PORT ?? 3001);
 }

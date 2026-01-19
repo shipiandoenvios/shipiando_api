@@ -1,4 +1,5 @@
 import { Roles } from '../../common/decorators/roles.decorator';
+import { RequestWithUser } from '../../common/permissions/permission.util';
 import {
   Controller,
   Get,
@@ -8,6 +9,7 @@ import {
   Patch,
   Delete,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
@@ -29,39 +31,54 @@ export class AddressController {
   @ApiOperation({ summary: 'Crear dirección' })
   @ApiSuccessMessage('Dirección creada correctamente')
   @Roles('ADMIN', 'CLIENT', 'USER', 'STORE')
-  create(@Body() dto: CreateAddressDto) {
-    return this.addressService.create(dto);
+  create(@Body() dto: CreateAddressDto, @Req() req?: RequestWithUser) {
+    const user = req?.user;
+    const clientId = user && 'clientId' in user ? user.clientId : undefined;
+    if (clientId && user?.roles?.includes('CLIENT')) {
+      dto.clientId = clientId;
+    }
+    return this.addressService.create(dto, user);
   }
 
   @Get()
   @ApiOperation({ summary: 'Listar direcciones' })
   @ApiSuccessMessage('Listado de direcciones obtenido')
   @Roles('ADMIN', 'CLIENT', 'USER', 'WAREHOUSE', 'CARRIER', 'STORE')
-  findAll(@Query() query: PaginationQueryDto) {
-    return this.addressService.findAll(query);
+  findAll(@Query() query: PaginationQueryDto, @Req() req?: RequestWithUser) {
+    const user = req?.user;
+    const clientId = user && 'clientId' in user ? user.clientId : undefined;
+    return this.addressService.findAll(query, clientId);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Obtener dirección por ID' })
   @ApiSuccessMessage('Dirección obtenida')
   @Roles('ADMIN', 'CLIENT', 'USER', 'WAREHOUSE', 'CARRIER', 'STORE')
-  findOne(@Param('id') id: string) {
-    return this.addressService.findOne(id);
+  findOne(@Param('id') id: string, @Req() req?: RequestWithUser) {
+    const user = req?.user;
+    const clientId = user && 'clientId' in user ? user.clientId : undefined;
+    return this.addressService.findOne(id, clientId);
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Actualizar dirección' })
   @ApiSuccessMessage('Dirección actualizada correctamente')
   @Roles('ADMIN', 'CLIENT', 'USER', 'STORE')
-  update(@Param('id') id: string, @Body() dto: UpdateAddressDto) {
-    return this.addressService.update(id, dto);
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateAddressDto,
+    @Req() req?: RequestWithUser,
+  ) {
+    const user = req?.user;
+    return this.addressService.update(id, dto, user);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Eliminar dirección' })
   @ApiSuccessMessage('Dirección eliminada correctamente')
   @Roles('ADMIN', 'CLIENT', 'USER', 'STORE')
-  remove(@Param('id') id: string) {
-    return this.addressService.remove(id);
+  remove(@Param('id') id: string, @Req() req?: RequestWithUser) {
+    const user = req?.user;
+    return this.addressService.remove(id, user);
   }
 }

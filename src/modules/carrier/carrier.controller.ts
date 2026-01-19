@@ -1,4 +1,5 @@
 import { Roles } from '../../common/decorators/roles.decorator';
+import { RequestWithUser } from '../../common/permissions/permission.util';
 import {
   Body,
   Controller,
@@ -8,6 +9,7 @@ import {
   Patch,
   Post,
   Query,
+  Req,
 } from '@nestjs/common';
 import { UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
@@ -29,8 +31,8 @@ export class CarrierController {
   @ApiOperation({ summary: 'Crear carrier' })
   @ApiSuccessMessage('Carrier creado correctamente')
   @Roles('ADMIN', 'CARRIER')
-  create(@Body() dto: CreateCarrierDto) {
-    return this.carrierService.create(dto);
+  create(@Body() dto: CreateCarrierDto, @Req() req?: RequestWithUser) {
+    return this.carrierService.create(dto, req?.user);
   }
 
   @Get()
@@ -53,15 +55,19 @@ export class CarrierController {
   @ApiOperation({ summary: 'Actualizar carrier' })
   @ApiSuccessMessage('Carrier actualizado correctamente')
   @Roles('ADMIN', 'CARRIER')
-  update(@Param('id') id: string, @Body() body: UpdateCarrierDto) {
-    return this.carrierService.update(id, body);
+  update(
+    @Param('id') id: string,
+    @Body() body: UpdateCarrierDto,
+    @Req() req?: RequestWithUser,
+  ) {
+    return this.carrierService.update(id, body, req?.user);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Eliminar carrier' })
   @ApiSuccessMessage('Carrier eliminado correctamente')
   @Roles('ADMIN', 'CARRIER')
-  remove(@Param('id') id: string) {
-    return this.carrierService.remove(id);
+  remove(@Param('id') id: string, @Req() req?: RequestWithUser) {
+    return this.carrierService.remove(id, req?.user);
   }
 }

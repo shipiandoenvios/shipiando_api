@@ -17,8 +17,9 @@ import { Roles } from 'src/common/decorators/roles.decorator';
 import { PackageService } from './package.service';
 import { CreatePackageDto } from './dto/create-package.dto';
 import { UpdatePackageDto } from './dto/update-package.dto';
-import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
+import { PackageListQueryDto } from './dto/package-list-query.dto';
 import { ApiSuccessMessage } from '../../common/decorators/response.decorator';
+import { RequestWithUser } from '../../common/permissions/permission.util';
 import type { PackageStatus } from '@prisma/client';
 
 class ScanPackageDto {
@@ -37,18 +38,18 @@ export class PackageController {
   @ApiOperation({ summary: 'Crear paquete' })
   @ApiSuccessMessage('Paquete creado correctamente')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN','WAREHOUSE','CARRIER','STORE')
-  create(@Body() dto: CreatePackageDto) {
-    return this.packageService.create(dto);
+  @Roles('ADMIN', 'WAREHOUSE', 'CARRIER', 'STORE')
+  create(@Body() dto: CreatePackageDto, @Req() req?: RequestWithUser) {
+    return this.packageService.create(dto, req?.user, req?.clientId);
   }
 
   @Get()
   @ApiOperation({ summary: 'Listar paquetes' })
   @ApiSuccessMessage('Listado de paquetes obtenido')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN','WAREHOUSE','CARRIER','CLIENT','USER','STORE')
-  findAll(@Query() query: PackageListQueryDto) {
-    return this.packageService.findAll(query);
+  @Roles('ADMIN', 'WAREHOUSE', 'CARRIER', 'CLIENT', 'USER', 'STORE')
+  findAll(@Query() query: PackageListQueryDto, @Req() req?: RequestWithUser) {
+    return this.packageService.findAll(query, req?.clientId);
   }
 
   @Get('tracking/:trackingCode')
@@ -60,12 +61,13 @@ export class PackageController {
   getByTrackingCode(
     @Param('trackingCode') trackingCode: string,
     @Query('viewerType') viewerType?: string,
-    @Req() req?: any,
+    @Req() req?: RequestWithUser,
   ) {
     return this.packageService.findByTrackingCodeWithContext(
       trackingCode,
       viewerType,
-      req?.user,
+      req?.user ? (req.user as { id: string; roles?: string[] }) : undefined,
+      req?.clientId,
     );
   }
 
@@ -73,31 +75,40 @@ export class PackageController {
   @ApiOperation({ summary: 'Detalle paquete (solo paquete)' })
   @ApiSuccessMessage('Paquete obtenido')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN','CLIENT','WAREHOUSE','CARRIER','USER','STORE')
-  findOne(@Param('id') id: string) {
-    return this.packageService.findOne(id);
+  @Roles('ADMIN', 'CLIENT', 'WAREHOUSE', 'CARRIER', 'USER', 'STORE')
+  findOne(@Param('id') id: string, @Req() req?: RequestWithUser) {
+    return this.packageService.findOne(id, req?.clientId);
   }
 
   @Get(':id/context')
   @ApiOperation({ summary: 'Contexto completo filtrado por viewerType' })
   @ApiSuccessMessage('Contexto de paquete obtenido')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN','CLIENT','USER','WAREHOUSE','CARRIER','STORE')
+  @Roles('ADMIN', 'CLIENT', 'USER', 'WAREHOUSE', 'CARRIER', 'STORE')
   findContext(
     @Param('id') id: string,
     @Query('viewerType') viewerType?: string,
-    @Req() req?: any,
+    @Req() req?: RequestWithUser,
   ) {
-    return this.packageService.findOneWithContext(id, viewerType, req?.user);
+    return this.packageService.findOneWithContext(
+      id,
+      viewerType,
+      req?.user ? (req.user as { id: string; roles?: string[] }) : undefined,
+      req?.clientId,
+    );
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Actualizar paquete' })
   @ApiSuccessMessage('Paquete actualizado correctamente')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN','WAREHOUSE','CARRIER','STORE')
-  update(@Param('id') id: string, @Body() dto: UpdatePackageDto) {
-    return this.packageService.update(id, dto);
+  @Roles('ADMIN', 'WAREHOUSE', 'CARRIER', 'STORE')
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdatePackageDto,
+    @Req() req?: RequestWithUser,
+  ) {
+    return this.packageService.update(id, dto, req?.user, req?.clientId);
   }
 
   @Patch(':id/scan')
@@ -106,12 +117,12 @@ export class PackageController {
   })
   @ApiSuccessMessage('Paquete escaneado y actualizado')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('WAREHOUSE','CARRIER','ADMIN','STORE')
+  @Roles('WAREHOUSE', 'CARRIER', 'ADMIN', 'STORE')
   scan(
     @Param('id') id: string,
     @Body() body: ScanPackageDto & { viewerType?: string },
     @Query('viewerType') viewerType?: string,
-    @Req() req?: any,
+    @Req() req?: RequestWithUser,
   ) {
     return this.packageService.scanAndUpdateWithContext(
       id,
@@ -119,7 +130,7 @@ export class PackageController {
         ...body,
         viewerType,
       },
-      req?.user,
+      req?.user ? (req.user as { id: string; roles?: string[] }) : undefined,
       req,
     );
   }
@@ -129,7 +140,7 @@ export class PackageController {
   @ApiSuccessMessage('Paquete eliminado correctamente')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')
-  remove(@Param('id') id: string) {
-    return this.packageService.remove(id);
+  remove(@Param('id') id: string, @Req() req?: RequestWithUser) {
+    return this.packageService.remove(id, req?.user, req?.clientId);
   }
 }

@@ -1,0 +1,48 @@
+[
+  {
+    "id": "admin-full",
+    "description": "Admins can perform any package updates",
+    "subject": { "roles": ["ADMIN"] },
+    "action": "package.update"
+  },
+  {
+    "id": "client-update-created",
+    "description": "Client users may update packages only while status is CREATED",
+    "subject": { "roles": ["CLIENT"] },
+    "action": "package.update",
+    "resource": "package",
+    "condition": { "status": "CREATED" }
+  },
+  {
+    "id": "warehouse-update-inwarehouse",
+    "description": "Warehouses may update packages when their status is IN_WAREHOUSE or OUT_FOR_DELIVERY",
+    "subject": { "roles": ["WAREHOUSE"] },
+    "action": "package.update",
+    "resource": "package",
+    "condition": { "status": "IN_WAREHOUSE" }
+  },
+  {
+    "id": "warehouse-update-outfordelivery",
+    "description": "Warehouses may update packages when status is OUT_FOR_DELIVERY",
+    "subject": { "roles": ["WAREHOUSE"] },
+    "action": "package.update",
+    "resource": "package",
+    "condition": { "status": "OUT_FOR_DELIVERY" }
+  },
+  {
+    "id": "carrier-update-intransit-delivered",
+    "description": "Carriers can update packages when status is IN_TRANSIT or DELIVERED",
+    "subject": { "roles": ["CARRIER"] },
+    "action": "package.update",
+    "resource": "package",
+    "condition": { "status": "IN_TRANSIT" }
+  },
+  {
+    "id": "carrier-update-delivered",
+    "description": "Carriers finalized delivery",
+    "subject": { "roles": ["CARRIER"] },
+    "action": "package.update",
+    "resource": "package",
+    "condition": { "status": "DELIVERED" }
+  }
+]

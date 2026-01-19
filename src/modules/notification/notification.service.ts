@@ -7,7 +7,7 @@ export interface NotificationPayload {
   subject?: string;
   message: string;
   channel: NotificationChannel;
-  meta?: Record<string, any>;
+  meta?: Record<string, unknown>;
 }
 
 @Injectable()
@@ -29,17 +29,19 @@ export class NotificationService {
   }
 
   private async sendEmail(payload: NotificationPayload) {
-    // TODO: Integrate with real email provider (e.g., nodemailer)
-    console.log(`[EMAIL] To: ${payload.to} | Subject: ${payload.subject} | Message: ${payload.message}`);
+    await Promise.resolve();
+    console.log(
+      `[EMAIL] To: ${payload.to} | Subject: ${payload.subject} | Message: ${payload.message}`,
+    );
   }
 
   private async sendSms(payload: NotificationPayload) {
-    // TODO: Integrate with real SMS provider (e.g., Twilio)
+    await Promise.resolve();
     console.log(`[SMS] To: ${payload.to} | Message: ${payload.message}`);
   }
 
   private async sendPush(payload: NotificationPayload) {
-    // TODO: Integrate with real push provider (e.g., FCM/WebPush)
+    await Promise.resolve();
     console.log(`[PUSH] To: ${payload.to} | Message: ${payload.message}`);
   }
 }

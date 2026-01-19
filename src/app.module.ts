@@ -22,12 +22,15 @@ import {
   VehicleModule,
   WarehouseModule,
   ClientUserModule,
+  PermissionsModule,
 } from './modules';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { TransformResponseInterceptor } from './common/interceptors/transform-response.interceptor';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ThrottlerModule.forRoot([{ ttl: 60000, limit: 20 }]),
     AddressModule,
     CarrierModule,
     ClientModule,
@@ -36,8 +39,9 @@ import { TransformResponseInterceptor } from './common/interceptors/transform-re
     OrderModule,
     PackageModule,
     PrismaModule,
-  AuthModule,
+    AuthModule,
     ProductCategoryModule,
+    PermissionsModule,
     ProductModule,
     RoleModule,
     ShipmentModule,

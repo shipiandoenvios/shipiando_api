@@ -1,20 +1,27 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
+import {
+  assertHasAnyRole,
+  AppUser,
+  assertClientMatches,
+} from '../../common/permissions/permission.util';
+import { assertHasPermission } from '../../common/permissions/abac.util';
 import { PrismaService } from '../../prisma/prisma.service';
-import {
-  CreatePackageDto,
-  PackageStatus as DtoPackageStatus,
-} from './dto/create-package.dto';
+import { CreatePackageDto } from './dto/create-package.dto';
 import { UpdatePackageDto } from './dto/update-package.dto';
-import {
-  PaginationQueryDto,
-  PaginatedResult,
-} from 'src/common/dto/pagination-query.dto';
+import { PaginatedResult } from 'src/common/dto/pagination-query.dto';
 import { PackageListQueryDto } from './dto/package-list-query.dto';
 import { buildPaginatedResult } from '../../common/utils/pagination.util';
 import { randomBytes } from 'crypto';
-import { NotificationService, NotificationChannel } from '../notification/notification.service';
-import { logPackageStatusChange } from './audit-log.util';
+import { NotificationService } from '../notification/notification.service';
+import { logPackageStatusChangeLegacy } from './audit-log.util';
+import { logPolicyDenial } from '../../common/logging/audit.logger';
 import { isStatusTransitionAllowed } from './status-transition.util';
+import { assertCanTransition } from './status-transition-permissions.util';
 import {
   TrackingEventType,
   PackageStatus as PrismaPackageStatus,
@@ -97,8 +104,7 @@ export class PackageService {
       case 'AT_ORIGIN':
         return TrackingEventType.PICKED_UP;
       case 'IN_WAREHOUSE':
-        // Evento intermedio: En centro de distribución
-        return TrackingEventType.EN_CENTRO_DISTRIBUCION;
+        return TrackingEventType.HUB_TRANSFER;
       case 'IN_TRANSIT':
         return TrackingEventType.IN_TRANSIT;
       case 'OUT_FOR_DELIVERY':
@@ -277,7 +283,32 @@ export class PackageService {
     return this.filterContext(full, viewerType || 'PUBLIC');
   }
 
-  async create(data: CreatePackageDto) {
+  async create(data: CreatePackageDto, user?: AppUser, clientId?: string) {
+    // Service-level RBAC: if a user is provided, verify they can create packages
+    if (user)
+      assertHasAnyRole(user, ['ADMIN', 'WAREHOUSE', 'CARRIER', 'STORE']);
+
+    // Enforce tenant scope: if caller is CLIENT, ensure clientId matches and bind it
+    if (user) assertClientMatches(user, clientId);
+    if (user?.roles?.includes('CLIENT') && 'clientId' in user) {
+      const boundClient = user.clientId;
+      data.clientId = boundClient ?? clientId ?? data.clientId;
+    } else if (clientId && !data.clientId) {
+      data.clientId = clientId;
+    }
+
+    // If caller is CLIENT and clientId provided, ensure the referenced order belongs to that client
+    if (clientId && user?.roles?.includes('CLIENT') && data.orderId) {
+      const order = await this.prisma.order.findUnique({
+        where: { id: data.orderId },
+      });
+      if (!order || order.clientId !== clientId) {
+        throw new ForbiddenException(
+          'No autorizado para crear paquete para este pedido',
+        );
+      }
+    }
+
     if (!data.trackingCode) {
       data.trackingCode = await this.generateUniqueTrackingCode();
     } else {
@@ -289,13 +320,14 @@ export class PackageService {
       }
     }
     if (!data.status) {
-      data.status = DtoPackageStatus.CREATED;
+      data.status = PrismaPackageStatus.CREATED;
     }
     return this.prisma.package.create({ data });
   }
 
   async findAll(
     params?: PackageListQueryDto,
+    clientId?: string,
   ): Promise<PaginatedResult<Package>> {
     const {
       page = 1,
@@ -309,7 +341,7 @@ export class PackageService {
       tracking,
     } = params || {};
     const skip = (page - 1) * limit;
-    const where: any = {};
+    const where: Record<string, unknown> = {};
     if (search) {
       where.OR = [
         { trackingCode: { contains: search, mode: 'insensitive' } },
@@ -322,30 +354,44 @@ export class PackageService {
     if (shipmentId) where.shipmentId = shipmentId;
     if (currentWarehouseId) where.currentWarehouseId = currentWarehouseId;
     if (tracking) where.trackingCode = tracking;
-    const [total, items] = await this.prisma.$transaction([
-      this.prisma.package.count({ where }),
-      this.prisma.package.findMany({
+    if (clientId) where.order = { clientId };
+    const [total, items] = await this.prisma.$transaction(async (tx) => {
+      const t = await tx.package.count({ where });
+      const i = await tx.package.findMany({
         skip,
         take: limit,
         orderBy: { [sortBy]: sortOrder },
         where,
-      }),
-    ]);
+      });
+      return [t, i] as const;
+    });
     return buildPaginatedResult(items, total, page, limit);
   }
 
-  async findOne(id: string) {
-    const pkg = await this.prisma.package.findUnique({ where: { id } });
+  async findOne(id: string, clientId?: string) {
+    const pkg = await this.prisma.package.findUnique({
+      where: { id },
+      include: { order: true },
+    });
     if (!pkg) throw new NotFoundException('Package not found');
+    if (clientId && pkg.order?.clientId !== clientId)
+      throw new ForbiddenException('No autorizado para ver este recurso');
     return pkg;
   }
 
-  async findOneWithContext(id: string, viewerType?: string, user?: { id: string; roles?: string[] }) {
+  async findOneWithContext(
+    id: string,
+    viewerType?: string,
+    user?: { id: string; roles?: string[] },
+    clientId?: string,
+  ) {
     const pkg = await this.prisma.package.findUnique({
       where: { id },
-      include: { origin: true, destination: true },
+      include: { origin: true, destination: true, order: true },
     });
     if (!pkg) throw new NotFoundException('Package not found');
+    if (clientId && pkg.order?.clientId !== clientId)
+      throw new ForbiddenException('No autorizado para ver este recurso');
     let shipment:
       | (Shipment & {
           carrier?: Carrier | null;
@@ -384,11 +430,14 @@ export class PackageService {
     return this.buildContext(pkg, shipment, viewerType);
   }
 
-  async findByTrackingCode(trackingCode: string) {
+  async findByTrackingCode(trackingCode: string, clientId?: string) {
     const pkg = await this.prisma.package.findUnique({
       where: { trackingCode },
+      include: { order: true },
     });
     if (!pkg) throw new NotFoundException('Package not found');
+    if (clientId && pkg.order?.clientId !== clientId)
+      throw new ForbiddenException('No autorizado para ver este recurso');
     return pkg;
   }
 
@@ -396,12 +445,15 @@ export class PackageService {
     trackingCode: string,
     viewerType?: string,
     user?: { id: string; roles?: string[] },
+    clientId?: string,
   ) {
     const pkg = await this.prisma.package.findUnique({
       where: { trackingCode },
-      include: { origin: true, destination: true },
+      include: { origin: true, destination: true, order: true },
     });
     if (!pkg) throw new NotFoundException('Package not found');
+    if (clientId && pkg.order?.clientId !== clientId)
+      throw new ForbiddenException('No autorizado para ver este recurso');
     let shipment:
       | (Shipment & {
           carrier?: Carrier | null;
@@ -440,13 +492,89 @@ export class PackageService {
     return this.buildContext(pkg, shipment, viewerType);
   }
 
-  async update(id: string, data: UpdatePackageDto) {
-    await this.findOne(id);
+  async update(
+    id: string,
+    data: UpdatePackageDto,
+    user?: AppUser,
+    clientId?: string,
+  ) {
+    // Service-level RBAC: if a user is provided, verify they can update packages
+    if (user)
+      assertHasAnyRole(user, ['ADMIN', 'WAREHOUSE', 'CARRIER', 'STORE']);
+
+    const pkg = await this.findOne(id, clientId);
+
+    // Enforce tenant scoping
+    if (user) assertClientMatches(user, clientId);
+
+    // ABAC: evaluate permission to update this package based on current attributes
+    if (user) {
+      try {
+        assertHasPermission(user, 'package.update', 'package', {
+          status: pkg.status,
+          clientId: pkg.order?.clientId,
+        });
+      } catch (e) {
+        // Audit denial
+        try {
+          logPolicyDenial({
+            timestamp: new Date().toISOString(),
+            userId: user?.id ?? null,
+            action: 'package.update',
+            resource: 'package',
+            attrs: { id, status: pkg.status, clientId: pkg.order?.clientId },
+            reason: String(e),
+            clientId: pkg.order?.clientId,
+          });
+        } catch {
+          /* non-fatal */
+        }
+        // Notify admins if configured
+        try {
+          const admins = (process.env.ADMIN_NOTIFICATION_EMAILS || '')
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean);
+          for (const a of admins) {
+            await this.notificationService.sendNotification({
+              to: a,
+              subject: `Policy denial: package.update by ${user?.id ?? 'unknown'}`,
+              message: `User ${user?.id ?? 'unknown'} was denied package.update on package ${id}. Reason: ${String(e)}. attrs=${JSON.stringify({ status: pkg.status, clientId: pkg.order?.clientId })}`,
+              channel: 'email',
+              meta: {
+                action: 'package.update',
+                packageId: id,
+                userId: user?.id ?? null,
+              },
+            });
+          }
+        } catch {
+          /* non-fatal */
+        }
+        throw e; // rethrow ForbiddenException from policy engine
+      }
+    }
+
+    // If status change is requested, validate transition and role-per-transition
+    if (data.status && data.status !== pkg.status) {
+      if (!isStatusTransitionAllowed(pkg.status, data.status)) {
+        throw new BadRequestException(
+          `Transición de estado no permitida: ${pkg.status} → ${data.status}`,
+        );
+      }
+      if (user) {
+        assertCanTransition(user, String(pkg.status), String(data.status));
+      }
+    }
+
     return this.prisma.package.update({ where: { id }, data });
   }
 
-  async remove(id: string) {
-    await this.findOne(id);
+  async remove(id: string, user?: AppUser, clientId?: string) {
+    // Service-level RBAC: if a user is provided, only ADMIN can delete
+    if (user) assertHasAnyRole(user, ['ADMIN']);
+
+    await this.findOne(id, clientId);
     return this.prisma.package.delete({ where: { id } });
   }
 
@@ -459,21 +587,40 @@ export class PackageService {
       currentWarehouseId?: string;
     },
     auditContext?: { userId?: string | null; ip?: string; userAgent?: string },
+    user?: { id?: string; roles?: string[] },
+    clientId?: string,
   ) {
     const pkg = await this.prisma.package.findUnique({
       where: { id },
       include: {
-        user: true,
-        client: true,
+        order: { include: { client: true } },
       },
     });
     if (!pkg) throw new NotFoundException('Paquete no encontrado');
+    if (clientId && pkg.order?.clientId !== clientId)
+      throw new ForbiddenException('No autorizado para ver este recurso');
     const previousStatus = pkg.status;
     // Validar transición de estado si aplica
     if (data.status && data.status !== previousStatus) {
       if (!isStatusTransitionAllowed(previousStatus, data.status)) {
-        throw new BadRequestException(`Transición de estado no permitida: ${previousStatus} → ${data.status}`);
+        throw new BadRequestException(
+          `Transición de estado no permitida: ${previousStatus} → ${data.status}`,
+        );
       }
+      // Validar que el usuario (si se proporciona) tiene permisos para esta transición
+      if (user) {
+        // If user is provided, check allowed roles for transition
+        assertCanTransition(user, String(previousStatus), String(data.status));
+      }
+    }
+
+    // Additional ABAC check for scan/update flows
+    if (user) {
+      assertClientMatches(user, clientId);
+      assertHasPermission(user, 'package.update', 'package', {
+        status: previousStatus,
+        clientId: pkg.order?.clientId,
+      });
     }
     const updated = await this.prisma.package.update({
       where: { id },
@@ -488,7 +635,7 @@ export class PackageService {
     });
     if (data.status && data.status !== previousStatus) {
       // --- AUDITORÍA ---
-      logPackageStatusChange({
+      logPackageStatusChangeLegacy({
         timestamp: new Date().toISOString(),
         userId: auditContext?.userId ?? null,
         packageId: pkg.id,
@@ -505,60 +652,34 @@ export class PackageService {
         longitude: updated.longitude ?? undefined,
       });
 
-      // Notificación automática al usuario y vendedor
+      // Notificación automática al vendedor
       const statusLabel = data.status;
       const subject = `Actualización de estado de tu paquete`;
-      const message = `El estado de tu paquete ha cambiado a: ${statusLabel}`;
-      // Notificar usuario (si tiene email/teléfono)
-      if (pkg.user) {
-        if (pkg.user.email) {
-          await this.notificationService.sendNotification({
-            to: pkg.user.email,
-            subject,
-            message,
-            channel: 'email',
-            meta: { packageId: pkg.id, status: data.status },
-          });
-        }
-        if (pkg.user.phone) {
-          await this.notificationService.sendNotification({
-            to: pkg.user.phone,
-            message,
-            channel: 'sms',
-            meta: { packageId: pkg.id, status: data.status },
-          });
-        }
-        if (pkg.user.pushToken) {
-          await this.notificationService.sendNotification({
-            to: pkg.user.pushToken,
-            message,
-            channel: 'push',
-            meta: { packageId: pkg.id, status: data.status },
-          });
-        }
-      }
+
       // Notificar vendedor/cliente (si tiene email/teléfono)
-      if (pkg.client) {
-        if (pkg.client.email) {
+      if (pkg.order?.client) {
+        if (pkg.order.client.email) {
           await this.notificationService.sendNotification({
-            to: pkg.client.email,
+            to: pkg.order.client.email,
             subject,
             message: `El estado de un paquete de tu cliente ha cambiado a: ${statusLabel}`,
             channel: 'email',
             meta: { packageId: pkg.id, status: data.status },
           });
         }
-        if (pkg.client.phone) {
+        if (pkg.order.client.phone) {
           await this.notificationService.sendNotification({
-            to: pkg.client.phone,
+            to: pkg.order.client.phone,
             message: `El estado de un paquete de tu cliente ha cambiado a: ${statusLabel}`,
             channel: 'sms',
             meta: { packageId: pkg.id, status: data.status },
           });
         }
-        if (pkg.client.pushToken) {
+        const clientPushToken = (pkg.order.client as { pushToken?: string })
+          ?.pushToken;
+        if (clientPushToken) {
           await this.notificationService.sendNotification({
-            to: pkg.client.pushToken,
+            to: clientPushToken,
             message: `El estado de un paquete de tu cliente ha cambiado a: ${statusLabel}`,
             channel: 'push',
             meta: { packageId: pkg.id, status: data.status },
@@ -579,7 +700,7 @@ export class PackageService {
       viewerType?: string;
     },
     user?: { id: string; roles?: string[] },
-    req?: { ip?: string; headers?: any },
+    req?: { ip?: string; headers?: Record<string, unknown>; clientId?: string },
   ) {
     // Validar que el usuario autenticado puede realizar escaneo/actualización
     const vt = (data.viewerType || '').toUpperCase();
@@ -590,7 +711,9 @@ export class PackageService {
     const allowed = ['WAREHOUSE', 'CARRIER', 'ADMIN'];
     const has = user.roles.some((r) => allowed.includes(r));
     if (!has) {
-      throw new ForbiddenException('No autorizado: solo warehouse/carrier pueden modificar estado por escaneo');
+      throw new ForbiddenException(
+        'No autorizado: solo warehouse/carrier pueden modificar estado por escaneo',
+      );
     }
     // Si viewerType está presente, validar que coincide con rol o es ADMIN
     if (vt) {
@@ -598,19 +721,82 @@ export class PackageService {
         throw new BadRequestException('viewerType inválido para escaneo');
       }
       if (vt !== 'ADMIN' && !user.roles.includes(vt)) {
-        throw new ForbiddenException('viewerType no coincide con roles del usuario');
+        throw new ForbiddenException(
+          'viewerType no coincide con roles del usuario',
+        );
       }
     }
+    const ip =
+      req?.ip ||
+      req?.headers?.['x-forwarded-for'] ||
+      req?.headers?.['x-real-ip'];
+    const userAgent =
+      typeof req?.headers?.['user-agent'] === 'string'
+        ? req.headers['user-agent']
+        : Array.isArray(req?.headers?.['user-agent'])
+          ? String(req.headers['user-agent'][0])
+          : undefined;
+    try {
+      if (user)
+        assertHasPermission(user, 'package.scan', 'package', {
+          viewerType: vt,
+          clientId: req?.clientId,
+        });
+    } catch (e) {
+      try {
+        logPolicyDenial({
+          timestamp: new Date().toISOString(),
+          userId: user?.id ?? null,
+          action: 'package.scan',
+          resource: 'package',
+          attrs: { id, viewerType: vt, clientId: req?.clientId },
+          reason: String(e),
+          clientId: req?.clientId,
+        });
+      } catch {
+        // non-fatal
+      }
+      try {
+        const admins = (process.env.ADMIN_NOTIFICATION_EMAILS || '')
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
+        for (const a of admins) {
+          await this.notificationService.sendNotification({
+            to: a,
+            subject: `Policy denial: package.scan by ${user?.id ?? 'unknown'}`,
+            message: `User ${user?.id ?? 'unknown'} was denied package.scan on package ${id}. Reason: ${String(e)}. attrs=${JSON.stringify({ viewerType: vt, clientId: req?.clientId })}`,
+            channel: 'email',
+            meta: {
+              action: 'package.scan',
+              packageId: id,
+              userId: user?.id ?? null,
+            },
+          });
+        }
+      } catch {
+        /* non-fatal */
+      }
+      throw e;
+    }
 
-    // Extraer IP y user-agent del request si está disponible
-    const ip = req?.ip || req?.headers?.['x-forwarded-for'] || req?.headers?.['x-real-ip'];
-    const userAgent = req?.headers?.['user-agent'];
+    const updated = await this.scanAndUpdate(
+      id,
+      data,
+      {
+        userId: user.id,
+        ip:
+          typeof ip === 'string'
+            ? ip
+            : Array.isArray(ip)
+              ? String(ip[0])
+              : undefined,
+        userAgent,
+      },
+      user,
+      req?.clientId,
+    );
 
-    const updated = await this.scanAndUpdate(id, data, {
-      userId: user.id,
-      ip: typeof ip === 'string' ? ip : Array.isArray(ip) ? ip[0] : undefined,
-      userAgent,
-    });
     let shipment:
       | (Shipment & {
           carrier?: Carrier | null;
