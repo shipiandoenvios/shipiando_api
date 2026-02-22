@@ -1,7 +1,8 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import bcrypt from 'bcryptjs';
+import * as bcrypt from 'bcryptjs';
 import * as jwt from 'jsonwebtoken';
+import { RegisterDto } from './dto/register.dto';
 
 type JWTPayload = { id: string; email: string; roleId?: string };
 type ValidatedUser = {
@@ -24,10 +25,7 @@ export class AuthService {
     });
     if (!user) return null;
 
-    const compareFn = (
-      bcrypt as { compare: (data: string, hash: string) => Promise<boolean> }
-    ).compare;
-    const valid = await compareFn(password, String(user.passwordHash));
+    const valid = await bcrypt.compare(password, String(user.passwordHash));
     if (!valid) return null;
 
     // remove sensitive fields and include role names
@@ -60,6 +58,38 @@ export class AuthService {
       expiresIn: refreshExpiresIn,
     } as jwt.SignOptions);
     return { accessToken, refreshToken, user };
+  }
+
+  async register(dto: RegisterDto) {
+    const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    if (existing) throw new ConflictException('Email already registered');
+
+    const saltRounds = Number(process.env.PASSWORD_SALT_ROUNDS || 10);
+    const passwordHash = await bcrypt.hash(dto.password, saltRounds);
+
+    const role = await this.prisma.role.findFirst({
+      where: { name: { equals: 'USER', mode: 'insensitive' } },
+    });
+
+    const created = await this.prisma.user.create({
+      data: {
+        email: dto.email,
+        name: dto.name,
+        passwordHash,
+        roleId: role?.id ?? undefined,
+      },
+      include: { role: true },
+    });
+
+    const safeUser = {
+      ...created,
+      role: created.role?.name,
+      roles: created.role?.name ? [created.role.name] : [],
+    } as ValidatedUser;
+
+    delete (safeUser as { passwordHash?: unknown }).passwordHash;
+
+    return this.login(safeUser);
   }
 
   async refreshTokens(refreshToken: string) {

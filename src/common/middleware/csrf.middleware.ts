@@ -5,6 +5,17 @@ const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 export const csrfMiddleware: RequestHandler = (req, res, next) => {
   try {
     if (!MUTATING_METHODS.has(req.method)) return next();
+
+    const path = req.path || req.originalUrl || '';
+    const ALLOWLIST = [
+      '/api/auth/login',
+      '/api/auth/register',
+      '/api/auth/refresh',
+      '/api/auth/logout',
+      '/api/auth/2fa/verify',
+    ];
+    if (ALLOWLIST.some((route) => path.startsWith(route))) return next();
+
     const cookieName = process.env.AUTH_CSRF_COOKIE_NAME || 'sopy-csrf';
     const headerToken =
       typeof req.headers['x-csrf-token'] === 'string'
