@@ -11,6 +11,7 @@ import { Response } from 'express';
 import { randomBytes } from 'crypto';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
+import { RegisterDto } from './dto/register.dto';
 import { twoFactorService } from '../../common/security/twofactor.service';
 import { loginAttemptsService } from '../../common/security/login-attempts.service';
 
@@ -36,11 +37,11 @@ export class AuthController {
       Number(process.env.AUTH_REFRESH_TOKEN_MAX_AGE_MS) ||
       7 * 24 * 60 * 60 * 1000;
     const accessCookieName = process.env.AUTH_COOKIE_NAME || 'sopy-auth-token';
+    const sameSite = (process.env.COOKIE_SAMESITE as 'lax' | 'strict' | 'none') || 'lax';
     res.cookie(accessCookieName, accessToken, {
       httpOnly: true,
-      secure,
-      sameSite:
-        (process.env.COOKIE_SAMESITE as 'lax' | 'strict' | 'none') || 'lax',
+      secure: sameSite === 'none' ? true : secure,
+      sameSite,
       maxAge: accessMaxAge,
       path: '/',
     });
@@ -48,13 +49,62 @@ export class AuthController {
       process.env.AUTH_REFRESH_COOKIE_NAME || 'sopy-refresh-token';
     res.cookie(refreshCookieNameEnv, refreshToken, {
       httpOnly: true,
-      secure,
-      sameSite:
-        (process.env.COOKIE_SAMESITE as 'lax' | 'strict' | 'none') || 'lax',
+      secure: sameSite === 'none' ? true : secure,
+      sameSite,
       maxAge: refreshMaxAge,
       path: '/',
     });
     return { success: true };
+  }
+
+  @Post('register')
+  @HttpCode(201)
+  async register(
+    @Body() body: RegisterDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { accessToken, refreshToken, user } = await this.authService.register(
+      body,
+    );
+
+    const secure = process.env.NODE_ENV === 'production';
+    const accessMaxAge =
+      Number(process.env.AUTH_ACCESS_TOKEN_MAX_AGE_MS) || 15 * 60 * 1000;
+    const refreshMaxAge =
+      Number(process.env.AUTH_REFRESH_TOKEN_MAX_AGE_MS) ||
+      7 * 24 * 60 * 60 * 1000;
+
+    const accessCookieName = process.env.AUTH_COOKIE_NAME || 'sopy-auth-token';
+    const sameSite = (process.env.COOKIE_SAMESITE as 'lax' | 'strict' | 'none') || 'lax';
+    res.cookie(accessCookieName, accessToken, {
+      httpOnly: true,
+      secure: sameSite === 'none' ? true : secure,
+      sameSite,
+      maxAge: accessMaxAge,
+      path: '/',
+    });
+
+    const refreshCookieName =
+      process.env.AUTH_REFRESH_COOKIE_NAME || 'sopy-refresh-token';
+    res.cookie(refreshCookieName, refreshToken, {
+      httpOnly: true,
+      secure: sameSite === 'none' ? true : secure,
+      sameSite,
+      maxAge: refreshMaxAge,
+      path: '/',
+    });
+
+    const csrfCookieName = process.env.AUTH_CSRF_COOKIE_NAME || 'sopy-csrf';
+    const csrfToken = randomBytes(48).toString('hex');
+    res.cookie(csrfCookieName, csrfToken, {
+      httpOnly: false,
+      secure: sameSite === 'none' ? true : secure,
+      sameSite,
+      maxAge: refreshMaxAge,
+      path: '/',
+    });
+
+    return { success: true, token: accessToken, user };
   }
 
   @Post('login')
@@ -109,10 +159,11 @@ export class AuthController {
       7 * 24 * 60 * 60 * 1000;
 
     const accessCookieName = process.env.AUTH_COOKIE_NAME || 'sopy-auth-token';
+    const sameSite = (process.env.COOKIE_SAMESITE as 'lax' | 'strict' | 'none') || 'lax';
     res.cookie(accessCookieName, accessToken, {
       httpOnly: true,
-      secure,
-      sameSite: 'lax',
+      secure: sameSite === 'none' ? true : secure,
+      sameSite,
       maxAge: accessMaxAge,
       path: '/',
     });
@@ -121,8 +172,8 @@ export class AuthController {
       process.env.AUTH_REFRESH_COOKIE_NAME || 'sopy-refresh-token';
     res.cookie(refreshCookieName, refreshToken, {
       httpOnly: true,
-      secure,
-      sameSite: 'lax',
+      secure: sameSite === 'none' ? true : secure,
+      sameSite,
       maxAge: refreshMaxAge,
       path: '/',
     });
@@ -131,8 +182,8 @@ export class AuthController {
     const csrfToken = randomBytes(48).toString('hex');
     res.cookie(csrfCookieName, csrfToken, {
       httpOnly: false,
-      secure,
-      sameSite: 'lax',
+      secure: sameSite === 'none' ? true : secure,
+      sameSite,
       maxAge: refreshMaxAge,
       path: '/',
     });
@@ -180,11 +231,11 @@ export class AuthController {
 
       const accessCookieName =
         process.env.AUTH_COOKIE_NAME || 'sopy-auth-token';
+      const sameSite = (process.env.COOKIE_SAMESITE as 'lax' | 'strict' | 'none') || 'lax';
       res.cookie(accessCookieName, accessToken, {
         httpOnly: true,
-        secure,
-        sameSite:
-          (process.env.COOKIE_SAMESITE as 'lax' | 'strict' | 'none') || 'lax',
+        secure: sameSite === 'none' ? true : secure,
+        sameSite,
         maxAge: accessMaxAge,
         path: '/',
       });
@@ -193,9 +244,8 @@ export class AuthController {
         process.env.AUTH_REFRESH_COOKIE_NAME || 'sopy-refresh-token';
       res.cookie(refreshCookieNameEnv, newRefreshToken, {
         httpOnly: true,
-        secure,
-        sameSite:
-          (process.env.COOKIE_SAMESITE as 'lax' | 'strict' | 'none') || 'lax',
+        secure: sameSite === 'none' ? true : secure,
+        sameSite,
         maxAge: refreshMaxAge,
         path: '/',
       });
@@ -204,9 +254,8 @@ export class AuthController {
       const csrfToken = randomBytes(48).toString('hex');
       res.cookie(csrfCookieName, csrfToken, {
         httpOnly: false,
-        secure,
-        sameSite:
-          (process.env.COOKIE_SAMESITE as 'lax' | 'strict' | 'none') || 'lax',
+        secure: sameSite === 'none' ? true : secure,
+        sameSite,
         maxAge: refreshMaxAge,
         path: '/',
       });
